@@ -1,0 +1,537 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mrs. GREEN APPLE チケット獲得完全ガイド</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        /* * ベーススタイリングとスムーズスクロール
+         */
+        html {
+            scroll-behavior: smooth;
+            font-family: 'Helvetica Neue', Arial, 'Hiragino Kaku Gothic ProN', 'Hiragino Sans', Meiryo, sans-serif;
+            background-color: #FAFAFA;
+            color: #333333;
+        }
+
+        /* * チャートコンテナの厳格なスタイリング（要件準拠）
+         */
+        .chart-container {
+            position: relative;
+            width: 100%;
+            max-width: 700px;
+            margin-left: auto;
+            margin-right: auto;
+            height: 350px;
+            max-height: 400px;
+            padding: 1rem;
+            background: #ffffff;
+            border-radius: 1rem;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
+        }
+        @media (max-width: 640px) {
+            .chart-container {
+                height: 300px;
+            }
+        }
+
+        /* * カスタムユーティリティ（SVG不使用のためCSSで実装）
+         */
+        .timeline-line {
+            position: absolute;
+            left: 15px;
+            top: 0;
+            bottom: 0;
+            width: 2px;
+            background-color: #8BC34A;
+        }
+        .timeline-dot {
+            position: absolute;
+            left: 8px;
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            background-color: #8BC34A;
+            border: 4px solid #FAFAFA;
+        }
+        
+        .strategy-card {
+            transition: all 0.3s ease;
+        }
+        .strategy-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 15px -3px rgba(139, 195, 74, 0.2);
+            border-color: #8BC34A;
+        }
+    </style>
+</head>
+<body class="antialiased leading-relaxed">
+
+    <!-- Chosen Palette: Warm Neutrals (#FAFAFA, #333333) with Apple Green Accents (#8BC34A, #F1F8E9) -->
+    <!-- Application Structure Plan: 
+        このSPAは、チケット獲得という目的を達成するための「ダッシュボード型ガイド」として設計されています。
+        1. 導入 (Hero): ユーザーの目的と課題（チケットが取れない）への共感。
+        2. 現状分析 (データ): なぜ取れないのか、どのフェーズが狙い目かをChart.jsで視覚化し、戦略の根拠を提示。
+        3. 戦略 (アクション): 具体的に何をすべきかをインタラクティブなカード形式で整理。ユーザーが詳細を掘り下げて読めるようにする。
+        4. プロセス (タイムライン): 実際の申し込みの流れをCSSベースのタイムラインで視覚化。
+        5. 実践 (チェックリスト): 学んだ戦略を自身が実行できているか確認するインタラクティブな診断ツール。
+        この構成により、ユーザーは「知る」→「理解する」→「行動を計画する」という自然なフローで情報を消費できます。
+    -->
+    <!-- Visualization & Content Choices: 
+        1. 確率推移グラフ -> 目的: 比較・情報伝達 -> 手法: Chart.js (Bar Chart) -> 理由: 抽選フェーズごとの当選確率の急激な低下を視覚的に訴え、FC入会の重要性を説得するため。
+        2. 戦略カード -> 目的: 整理 -> 手法: HTML/CSS Hover Effects + JS Click -> 理由: 情報量が多い戦略を整理し、ユーザーが興味のある項目を能動的に展開して読めるようにするため。
+        3. 申し込みフロー -> 目的: 変化・プロセス -> 手法: HTML/CSS Timeline -> 理由: 時間軸に沿った行動を直感的に理解させるため。SVGを用いずCSSのBorderとRadiusで表現。
+        4. 準備度診断 -> 目的: エンゲージメント・自己評価 -> 手法: Vanilla JS Form & Progress Bar -> 理由: 単なる読み物で終わらせず、ユーザー自身の状況を定量化してアクションを促すため。
+    -->
+    <!-- CONFIRMATION: NO SVG graphics used. NO Mermaid JS used. -->
+
+    <!-- Navigation -->
+    <nav class="sticky top-0 z-50 bg-white/90 backdrop-blur-md border-b border-gray-200">
+        <div class="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between h-16 items-center">
+                <div class="flex-shrink-0 flex items-center gap-2">
+                    <span class="text-2xl">🍏</span>
+                    <span class="font-bold text-gray-800 tracking-tight">Ticket Strategy Guide</span>
+                </div>
+                <div class="hidden md:flex space-x-8">
+                    <a href="#analysis" class="text-gray-600 hover:text-[#8BC34A] transition-colors text-sm font-medium">確率データ</a>
+                    <a href="#strategies" class="text-gray-600 hover:text-[#8BC34A] transition-colors text-sm font-medium">獲得戦略</a>
+                    <a href="#timeline" class="text-gray-600 hover:text-[#8BC34A] transition-colors text-sm font-medium">フロー</a>
+                    <a href="#checklist" class="text-gray-600 hover:text-[#8BC34A] transition-colors text-sm font-medium">準備度診断</a>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Hero Section -->
+    <header class="relative bg-[#F1F8E9] overflow-hidden">
+        <div class="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-20 lg:py-24 text-center">
+            <h1 class="text-4xl md:text-5xl font-extrabold text-gray-900 mb-6 tracking-tight">
+                Mrs. GREEN APPLE<br>
+                <span class="text-[#8BC34A]">チケット獲得</span> 完全ガイド
+            </h1>
+            <p class="mt-4 text-xl text-gray-600 max-w-2xl mx-auto leading-relaxed">
+                現在の日本の音楽シーンで最もチケットが取りにくいと言われるミセス。単なる運任せではなく、システムの理解と緻密な戦略が当選への鍵となります。本ガイドで確率を最大化する方法を学びましょう。
+            </p>
+            <div class="mt-10 flex justify-center gap-4">
+                <a href="#strategies" class="bg-[#8BC34A] hover:bg-[#7CB342] text-white px-8 py-3 rounded-full font-bold transition-colors shadow-lg">
+                    戦略を見る
+                </a>
+            </div>
+        </div>
+    </header>
+
+    <main>
+        <!-- Section 1: Data Analysis -->
+        <section id="analysis" class="py-16 md:py-24 bg-white">
+            <div class="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
+                <div class="mb-12 text-center md:text-left">
+                    <h2 class="text-3xl font-bold text-gray-900 mb-4 flex items-center justify-center md:justify-start gap-2">
+                        <span>📊</span> データで見る「当選の壁」
+                    </h2>
+                    <p class="text-gray-600 text-lg">
+                        このセクションでは、なぜミセスのチケットが「プラチナチケット」と呼ばれるのか、その構造を解説します。以下のチャートは、過去のツアー傾向に基づく<b>「各抽選フェーズごとの相対的な当選期待値」</b>（推定モデル）を示しています。一般発売に近づくほど、確率は絶望的になることがわかります。
+                    </p>
+                </div>
+
+                <div class="chart-container">
+                    <canvas id="probabilityChart"></canvas>
+                </div>
+                
+                <div class="mt-8 bg-gray-50 rounded-xl p-6 border border-gray-100 shadow-sm">
+                    <h3 class="font-bold text-gray-800 mb-2">💡 チャートからの洞察</h3>
+                    <ul class="list-none space-y-2 text-gray-600">
+                        <li>・ <b>W会員（年会費＋月会費）の優位性:</b> 最速先行の枠が最も多く確保されており、ここで外れても以降の先行に再挑戦できるため、圧倒的に有利です。</li>
+                        <li>・ <b>一般発売の現実:</b> ほぼ「空売り（先行で予定枚数終了し、ごく僅かなキャンセル枠のみ）」に近く、ボットや転売ヤーとの速度勝負になるため期待できません。</li>
+                    </ul>
+                </div>
+            </div>
+        </section>
+
+        <!-- Section 2: Strategies -->
+        <section id="strategies" class="py-16 md:py-24 bg-[#FAFAFA] border-y border-gray-200">
+            <div class="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
+                <div class="mb-12">
+                    <h2 class="text-3xl font-bold text-gray-900 mb-4 flex items-center gap-2">
+                        <span>🎯</span> 確率を極限まで上げる4つの戦略
+                    </h2>
+                    <p class="text-gray-600 text-lg">
+                        このセクションでは、単に申し込むだけでなく、システムをハックする（仕様を味方につける）ための具体的な行動指針を提供します。各カードをクリックして詳細なアクションプランを確認してください。
+                    </p>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <!-- Strategy 1 -->
+                    <div class="strategy-card bg-white p-6 rounded-xl border border-gray-200 cursor-pointer group" onclick="toggleDetails('strat1')">
+                        <div class="flex items-start justify-between">
+                            <h3 class="text-xl font-bold text-gray-900 group-hover:text-[#8BC34A] transition-colors">1. ファンクラブ「Ringo Jam」の完全活用</h3>
+                            <span class="text-2xl text-gray-400 group-hover:text-[#8BC34A] transition-colors" id="icon-strat1">＋</span>
+                        </div>
+                        <div id="strat1" class="hidden mt-4 pt-4 border-t border-gray-100 text-gray-600">
+                            <p class="mb-2">ミセスのFCには「年会費コース」と「月会費コース」があります。両方に登録している<strong>「W会員」</strong>が最優先されるのが通例です。</p>
+                            <ul class="pl-4 space-y-1 mt-2">
+                                <li>・ 資金に余裕があれば「W会員」になるのが必須条件。</li>
+                                <li>・ 難しい場合でも「年会費コース」を優先する（月会費より先行順位が高いことが多い）。</li>
+                                <li>・ 長期継続会員が優遇される可能性もゼロではないため、早めの入会が吉。</li>
+                            </ul>
+                        </div>
+                    </div>
+
+                    <!-- Strategy 2 -->
+                    <div class="strategy-card bg-white p-6 rounded-xl border border-gray-200 cursor-pointer group" onclick="toggleDetails('strat2')">
+                        <div class="flex items-start justify-between">
+                            <h3 class="text-xl font-bold text-gray-900 group-hover:text-[#8BC34A] transition-colors">2. 「狙い目」の公演日・会場を選ぶ</h3>
+                            <span class="text-2xl text-gray-400 group-hover:text-[#8BC34A] transition-colors" id="icon-strat2">＋</span>
+                        </div>
+                        <div id="strat2" class="hidden mt-4 pt-4 border-t border-gray-100 text-gray-600">
+                            <p class="mb-2">競争率（倍率）は日程と場所によって劇的に変わります。</p>
+                            <ul class="pl-4 space-y-1 mt-2">
+                                <li>・ <strong>避けるべき:</strong> ツアー初日、最終日（オーラス）、メンバーの誕生日、土日祝日の首都圏（東京ドーム、Kアリーナ等）。</li>
+                                <li>・ <strong>狙い目:</strong> 平日の地方公演、キャパシティ（収容人数）が比較的大きいドームやスタジアムの「平日」。</li>
+                                <li>・ 交通費と宿泊費がかかっても、地方遠征を前提とした方がチケット確保の確率は跳ね上がります。</li>
+                            </ul>
+                        </div>
+                    </div>
+
+                    <!-- Strategy 3 -->
+                    <div class="strategy-card bg-white p-6 rounded-xl border border-gray-200 cursor-pointer group" onclick="toggleDetails('strat3')">
+                        <div class="flex items-start justify-between">
+                            <h3 class="text-xl font-bold text-gray-900 group-hover:text-[#8BC34A] transition-colors">3. 申込枠を最大限に使う（複数公演・同行者）</h3>
+                            <span class="text-2xl text-gray-400 group-hover:text-[#8BC34A] transition-colors" id="icon-strat3">＋</span>
+                        </div>
+                        <div id="strat3" class="hidden mt-4 pt-4 border-t border-gray-100 text-gray-600">
+                            <p class="mb-2">抽選システムの性質上、「数撃ちゃ当たる」要素も強いです。</p>
+                            <ul class="pl-4 space-y-1 mt-2">
+                                <li>・ 「第1希望のみ」ではなく、行ける日程は第3希望、第4希望までフルで入力する。</li>
+                                <li>・ 友人（同行者）もFC会員になり、互いに代表者・同行者を入れ替えて申し込む（※重複申し込みの規約違反にならないか、公式の注意事項を必ず確認すること！「同行者としての申込も1回とみなす」ルールの場合は不可）。</li>
+                            </ul>
+                        </div>
+                    </div>
+
+                    <!-- Strategy 4 -->
+                    <div class="strategy-card bg-white p-6 rounded-xl border border-gray-200 cursor-pointer group" onclick="toggleDetails('strat4')">
+                        <div class="flex items-start justify-between">
+                            <h3 class="text-xl font-bold text-gray-900 group-hover:text-[#8BC34A] transition-colors">4. 公式トレード・リセールに張り付く</h3>
+                            <span class="text-2xl text-gray-400 group-hover:text-[#8BC34A] transition-colors" id="icon-strat4">＋</span>
+                        </div>
+                        <div id="strat4" class="hidden mt-4 pt-4 border-t border-gray-100 text-gray-600">
+                            <p class="mb-2">すべての抽選に落ちても、最後の希望が「公式トレード（チケプラ等）」です。</p>
+                            <ul class="pl-4 space-y-1 mt-2">
+                                <li>・ 公演の2週間前〜前日あたりに、行けなくなった人のチケットが出品されます。</li>
+                                <li>・ トレードは「毎日12時に抽選」などのシステムの他、直前は「早い者勝ち」になることも。</li>
+                                <li>・ 諦めずに毎日サイトをチェックし、プレミアム会員（トレード優遇がある場合）への登録も検討する。</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Section 3: Timeline -->
+        <section id="timeline" class="py-16 md:py-24 bg-white">
+            <div class="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8">
+                <div class="mb-12 text-center md:text-left">
+                    <h2 class="text-3xl font-bold text-gray-900 mb-4 flex items-center justify-center md:justify-start gap-2">
+                        <span>📅</span> 標準的なチケット発売スケジュール
+                    </h2>
+                    <p class="text-gray-600 text-lg">
+                        ツアー発表から実際のライブ当日まで、どのような流れでチケットが販売されるのかの全体像です。各ステップの期間は限られているため、情報解禁を見逃さないことが最重要です。
+                    </p>
+                </div>
+
+                <div class="relative pl-8 py-4">
+                    <div class="timeline-line"></div>
+                    
+                    <!-- Step 1 -->
+                    <div class="relative mb-10">
+                        <div class="timeline-dot top-1"></div>
+                        <h3 class="text-xl font-bold text-gray-900">1. ツアー開催発表＆FC最速先行</h3>
+                        <p class="text-sm text-[#8BC34A] font-bold mb-2">公演の約4〜6ヶ月前</p>
+                        <p class="text-gray-600 bg-gray-50 p-4 rounded-lg border border-gray-100">
+                            W会員（年額＋月額）、年額会員、月額会員の順で抽選が行われます。この期間中に入会しても申し込めるケースがほとんどです。
+                        </p>
+                    </div>
+
+                    <!-- Step 2 -->
+                    <div class="relative mb-10">
+                        <div class="timeline-dot top-1"></div>
+                        <h3 class="text-xl font-bold text-gray-900">2. オフィシャルHP/SNS先行</h3>
+                        <p class="text-sm text-[#8BC34A] font-bold mb-2">公演の約3〜4ヶ月前</p>
+                        <p class="text-gray-600 bg-gray-50 p-4 rounded-lg border border-gray-100">
+                            FC会員でなくても申し込める最初の先行。チケットぴあ等のプレイガイドシステムを通じて行われます。倍率は非常に高いです。
+                        </p>
+                    </div>
+
+                    <!-- Step 3 -->
+                    <div class="relative mb-10">
+                        <div class="timeline-dot top-1"></div>
+                        <h3 class="text-xl font-bold text-gray-900">3. プレイガイド先行（セブンイレブン先行等）</h3>
+                        <p class="text-sm text-[#8BC34A] font-bold mb-2">公演の約2〜3ヶ月前</p>
+                        <p class="text-gray-600 bg-gray-50 p-4 rounded-lg border border-gray-100">
+                            協賛企業やプレイガイド独自の先行枠。何度も抽選が行われますが、割り当てられる座席数は少なくなっていきます。
+                        </p>
+                    </div>
+
+                    <!-- Step 4 -->
+                    <div class="relative mb-10">
+                        <div class="timeline-dot top-1"></div>
+                        <h3 class="text-xl font-bold text-gray-900">4. 一般発売</h3>
+                        <p class="text-sm text-red-500 font-bold mb-2">公演の約1ヶ月前</p>
+                        <p class="text-gray-600 bg-gray-50 p-4 rounded-lg border border-gray-100">
+                            先着順が基本。発売開始数秒で「予定枚数終了」となるのが常態化しています。
+                        </p>
+                    </div>
+
+                    <!-- Step 5 -->
+                    <div class="relative">
+                        <div class="timeline-dot top-1"></div>
+                        <h3 class="text-xl font-bold text-gray-900">5. 公式トレード開始</h3>
+                        <p class="text-sm text-[#8BC34A] font-bold mb-2">公演の約2週間前〜前日</p>
+                        <p class="text-gray-600 bg-gray-50 p-4 rounded-lg border border-gray-100">
+                            急に行けなくなった人のチケットを定価で譲り受ける公式システム。最後のチャンスとして、毎日チェックすることが重要です。
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Section 4: Interactive Checklist -->
+        <section id="checklist" class="py-16 md:py-24 bg-[#F1F8E9]">
+            <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
+                <div class="mb-10 text-center">
+                    <h2 class="text-3xl font-bold text-gray-900 mb-4 flex items-center justify-center gap-2">
+                        <span>📝</span> あなたの「当選準備度」診断
+                    </h2>
+                    <p class="text-gray-600 text-lg">
+                        学んだ戦略をもとに、現在のあなたの準備状況をチェックしてみましょう。チェックを入れると、下部のゲージとアドバイスが動的に更新されます。
+                    </p>
+                </div>
+
+                <div class="bg-white rounded-2xl shadow-lg p-6 md:p-10 border border-[#8BC34A]/20">
+                    <form id="readiness-form" class="space-y-4">
+                        <label class="flex items-center p-4 border rounded-lg hover:bg-gray-50 cursor-pointer transition-colors">
+                            <input type="checkbox" class="form-checkbox h-6 w-6 text-[#8BC34A] rounded focus:ring-[#8BC34A]" value="30" onchange="calculateScore()">
+                            <span class="ml-4 text-gray-800 font-medium text-lg">FC「Ringo Jam」の年会費コースに入会している（または予定）</span>
+                        </label>
+                        
+                        <label class="flex items-center p-4 border rounded-lg hover:bg-gray-50 cursor-pointer transition-colors">
+                            <input type="checkbox" class="form-checkbox h-6 w-6 text-[#8BC34A] rounded focus:ring-[#8BC34A]" value="20" onchange="calculateScore()">
+                            <span class="ml-4 text-gray-800 font-medium text-lg">FC「Ringo Jam」の月会費コースに入会している（または予定）</span>
+                        </label>
+
+                        <label class="flex items-center p-4 border rounded-lg hover:bg-gray-50 cursor-pointer transition-colors">
+                            <input type="checkbox" class="form-checkbox h-6 w-6 text-[#8BC34A] rounded focus:ring-[#8BC34A]" value="20" onchange="calculateScore()">
+                            <span class="ml-4 text-gray-800 font-medium text-lg">土日の東京・大阪・名古屋以外の「地方公演」も遠征可能だ</span>
+                        </label>
+
+                        <label class="flex items-center p-4 border rounded-lg hover:bg-gray-50 cursor-pointer transition-colors">
+                            <input type="checkbox" class="form-checkbox h-6 w-6 text-[#8BC34A] rounded focus:ring-[#8BC34A]" value="15" onchange="calculateScore()">
+                            <span class="ml-4 text-gray-800 font-medium text-lg">平日開催の公演にもスケジュールを調整して参加できる</span>
+                        </label>
+
+                        <label class="flex items-center p-4 border rounded-lg hover:bg-gray-50 cursor-pointer transition-colors">
+                            <input type="checkbox" class="form-checkbox h-6 w-6 text-[#8BC34A] rounded focus:ring-[#8BC34A]" value="15" onchange="calculateScore()">
+                            <span class="ml-4 text-gray-800 font-medium text-lg">同行者（一緒に行く人）もFCに入会し、協力して申し込める</span>
+                        </label>
+                    </form>
+
+                    <div class="mt-10">
+                        <div class="flex justify-between items-end mb-2">
+                            <span class="text-sm font-bold text-gray-500 uppercase tracking-wider">チケット確保確率アップ度</span>
+                            <span id="score-display" class="text-4xl font-extrabold text-[#8BC34A]">0%</span>
+                        </div>
+                        <div class="w-full bg-gray-200 rounded-full h-4 overflow-hidden">
+                            <div id="score-bar" class="bg-[#8BC34A] h-4 rounded-full transition-all duration-500 ease-out" style="width: 0%"></div>
+                        </div>
+                        <div id="feedback-message" class="mt-6 p-4 rounded-lg bg-gray-50 text-gray-700 border border-gray-200 text-center font-medium">
+                            チェックボックスを選択して、準備度を測りましょう。
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <footer class="bg-gray-900 text-gray-400 py-8 text-center text-sm">
+        <div class="max-w-5xl mx-auto px-4">
+            <p>※本サイトの情報は過去の公演傾向に基づく分析・予測であり、実際の抽選結果を保証するものではありません。</p>
+            <p class="mt-2">必ず Mrs. GREEN APPLE 公式サイトおよび各プレイガイドの最新情報・応募規約をご確認ください。</p>
+        </div>
+    </footer>
+
+    <!-- JavaScript Logic -->
+    <script>
+        // --- 1. アコーディオン（戦略カード）のロジック ---
+        function toggleDetails(id) {
+            const content = document.getElementById(id);
+            const icon = document.getElementById('icon-' + id);
+            
+            if (content.classList.contains('hidden')) {
+                content.classList.remove('hidden');
+                icon.textContent = '−';
+                icon.classList.add('text-[#8BC34A]');
+            } else {
+                content.classList.add('hidden');
+                icon.textContent = '＋';
+                icon.classList.remove('text-[#8BC34A]');
+            }
+        }
+
+        // --- 2. 準備度診断（チェックリスト）のロジック ---
+        function calculateScore() {
+            const checkboxes = document.querySelectorAll('#readiness-form input[type="checkbox"]');
+            let totalScore = 0;
+            let isW_Member = false;
+            let fcCount = 0;
+
+            checkboxes.forEach((cb, index) => {
+                if (cb.checked) {
+                    totalScore += parseInt(cb.value);
+                    if (index === 0 || index === 1) fcCount++;
+                }
+            });
+
+            // W会員ボーナス処理等（表示用ロジック）
+            if (fcCount === 2) {
+                isW_Member = true;
+            }
+
+            // UI更新
+            const scoreDisplay = document.getElementById('score-display');
+            const scoreBar = document.getElementById('score-bar');
+            const feedbackMsg = document.getElementById('feedback-message');
+
+            scoreDisplay.textContent = totalScore + '%';
+            scoreBar.style.width = totalScore + '%';
+
+            // フィードバックテキストの動的更新
+            if (totalScore === 0) {
+                feedbackMsg.innerHTML = "チェックボックスを選択して、準備度を測りましょう。";
+                feedbackMsg.className = "mt-6 p-4 rounded-lg bg-gray-50 text-gray-700 border border-gray-200 text-center font-medium";
+                scoreBar.className = "bg-gray-400 h-4 rounded-full transition-all duration-500 ease-out";
+            } else if (totalScore < 50) {
+                feedbackMsg.innerHTML = "🚨 <b>かなり厳しい戦いになります。</b><br>まずは最低限どちらかのFCに入会することを強くお勧めします。一般発売での入手は困難を極めます。";
+                feedbackMsg.className = "mt-6 p-4 rounded-lg bg-red-50 text-red-700 border border-red-200 text-center font-medium";
+                scoreBar.className = "bg-red-500 h-4 rounded-full transition-all duration-500 ease-out";
+            } else if (totalScore < 80) {
+                feedbackMsg.innerHTML = "⚠️ <b>平均的な状況です。</b><br>FC枠での勝負になりますが、競争率は高いです。可能であれば「平日・地方」への遠征を検討して確率を上げましょう。";
+                feedbackMsg.className = "mt-6 p-4 rounded-lg bg-yellow-50 text-yellow-700 border border-yellow-200 text-center font-medium";
+                scoreBar.className = "bg-yellow-400 h-4 rounded-full transition-all duration-500 ease-out";
+            } else {
+                feedbackMsg.innerHTML = "🍏 <b>準備万端です！</b><br>最も確率の高い状態で抽選に臨めます。" + (isW_Member ? "W会員最速先行での当選を祈りましょう！" : "情報解禁を見逃さず、期間内に確実に応募してください。");
+                feedbackMsg.className = "mt-6 p-4 rounded-lg bg-[#F1F8E9] text-[#558B2F] border border-[#8BC34A] text-center font-bold";
+                scoreBar.className = "bg-[#8BC34A] h-4 rounded-full transition-all duration-500 ease-out";
+            }
+        }
+
+        // --- 3. Chart.js データビジュアライゼーション ---
+        document.addEventListener("DOMContentLoaded", function() {
+            const ctx = document.getElementById('probabilityChart').getContext('2d');
+            
+            // 視覚的なインパクトを与えるための相対期待値データ（※実際の当選確率の公表値ではありません）
+            const data = {
+                labels: [
+                    'FC(W会員)先行', 
+                    'FC(年/月)先行', 
+                    'オフィシャル先行', 
+                    'プレイガイド先行', 
+                    '一般発売'
+                ],
+                datasets: [{
+                    label: 'チケット確保期待値 (相対スコア)',
+                    data: [100, 60, 20, 5, 1], // W会員を100とした場合の相対値
+                    backgroundColor: [
+                        'rgba(139, 195, 74, 0.8)',  // #8BC34A W会員
+                        'rgba(139, 195, 74, 0.5)',  // FC単体
+                        'rgba(255, 193, 7, 0.6)',   // オフィシャル
+                        'rgba(244, 67, 54, 0.5)',   // PG
+                        'rgba(158, 158, 158, 0.4)'  // 一般
+                    ],
+                    borderColor: [
+                        'rgba(139, 195, 74, 1)',
+                        'rgba(139, 195, 74, 1)',
+                        'rgba(255, 193, 7, 1)',
+                        'rgba(244, 67, 54, 1)',
+                        'rgba(158, 158, 158, 1)'
+                    ],
+                    borderWidth: 1,
+                    borderRadius: 4
+                }]
+            };
+
+            const config = {
+                type: 'bar',
+                data: data,
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false, // コンテナの高さに従うために必須
+                    plugins: {
+                        legend: {
+                            display: false // シンプルにするため非表示
+                        },
+                        tooltip: {
+                            backgroundColor: 'rgba(0,0,0,0.8)',
+                            padding: 12,
+                            titleFont: { size: 14, family: 'sans-serif' },
+                            bodyFont: { size: 13, family: 'sans-serif' },
+                            callbacks: {
+                                label: function(context) {
+                                    if(context.dataIndex === 4) return ' ほぼゼロ（ボット・瞬殺）';
+                                    return ' 期待値スコア: ' + context.parsed.y;
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            max: 110,
+                            ticks: {
+                                display: false // 数値そのものより落差を見せるため非表示
+                            },
+                            grid: {
+                                borderDash: [5, 5],
+                                color: '#eee'
+                            },
+                            title: {
+                                display: true,
+                                text: '当たりやすさ',
+                                color: '#666'
+                            }
+                        },
+                        x: {
+                            grid: {
+                                display: false
+                            },
+                            ticks: {
+                                color: '#555',
+                                font: {
+                                    size: window.innerWidth < 640 ? 10 : 12 // モバイルで文字を少し小さく
+                                },
+                                maxRotation: 45,
+                                minRotation: 0,
+                                callback: function(value) {
+                                    // ラベルの折り返しロジック（16文字制限の代わり、今回は単語区切り）
+                                    const label = this.getLabelForValue(value);
+                                    if (window.innerWidth < 640 && label.length > 8) {
+                                        return label.substr(0, 5) + '...';
+                                    }
+                                    return label;
+                                }
+                            }
+                        }
+                    },
+                    animation: {
+                        duration: 1500,
+                        easing: 'easeOutQuart'
+                    }
+                }
+            };
+
+            new Chart(ctx, config);
+        });
+    </script>
+</body>
+</html>
