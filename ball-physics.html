@@ -1,0 +1,462 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ball Gravity Play</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: #0a0a0f;
+    font-family: 'Courier New', monospace;
+    overflow: hidden;
+    width: 100vw;
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+  }
+
+  #container {
+    position: relative;
+    width: 100vw;
+    height: 100vh;
+  }
+
+  #video {
+    position: absolute;
+    top: 0; left: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    transform: scaleX(-1);
+    opacity: 0.35;
+  }
+
+  #canvas {
+    position: absolute;
+    top: 0; left: 0;
+    width: 100%;
+    height: 100%;
+  }
+
+  #ui {
+    position: absolute;
+    top: 16px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    gap: 16px;
+    align-items: center;
+    z-index: 10;
+  }
+
+  .tag {
+    background: rgba(255,255,255,0.08);
+    border: 1px solid rgba(255,255,255,0.15);
+    color: rgba(255,255,255,0.7);
+    font-size: 11px;
+    padding: 4px 12px;
+    border-radius: 20px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+  }
+
+  #status {
+    position: absolute;
+    bottom: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    color: rgba(255,255,255,0.4);
+    font-size: 12px;
+    letter-spacing: 0.15em;
+    z-index: 10;
+  }
+
+  #loading {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    color: rgba(255,255,255,0.6);
+    font-size: 14px;
+    letter-spacing: 0.2em;
+    text-align: center;
+    z-index: 20;
+  }
+
+  .spinner {
+    width: 40px;
+    height: 40px;
+    border: 2px solid rgba(255,255,255,0.1);
+    border-top-color: rgba(255,255,255,0.6);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+    margin: 0 auto 16px;
+  }
+
+  @keyframes spin { to { transform: rotate(360deg); } }
+</style>
+</head>
+<body>
+<div id="container">
+  <video id="video" playsinline autoplay muted></video>
+  <canvas id="canvas"></canvas>
+  <div id="ui">
+    <span class="tag">✊ 握る = キャッチ</span>
+    <span class="tag">✋ 開く = リリース</span>
+  </div>
+  <div id="status">LOADING HAND TRACKING...</div>
+  <div id="loading">
+    <div class="spinner"></div>
+    カメラとモデルを初期化中...
+  </div>
+</div>
+
+<script type="module">
+import { HandLandmarker, FilesetResolver } from "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.12/vision_bundle.mjs";
+
+const video = document.getElementById('video');
+const canvas = document.getElementById('canvas');
+const ctx = canvas.getContext('2d');
+const statusEl = document.getElementById('status');
+const loadingEl = document.getElementById('loading');
+
+// ── Canvas resize ──────────────────────────────────────────
+function resize() {
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
+}
+resize();
+window.addEventListener('resize', resize);
+
+// ── Physics constants ──────────────────────────────────────
+const GRAVITY = 0.45;
+const DAMPING = 0.72;
+const FRICTION = 0.97;
+const BALL_COUNT = 28;
+
+// ── Ball colors ────────────────────────────────────────────
+const PALETTE = [
+  ['#FF6B6B','#FF8E8E'], ['#FF9F43','#FFB976'],
+  ['#FFEAA7','#FFF3C4'], ['#55EFC4','#81ECEC'],
+  ['#74B9FF','#A29BFE'], ['#FD79A8','#E84393'],
+  ['#6C5CE7','#A29BFE'], ['#00CEC9','#55EFC4'],
+  ['#E17055','#D63031'], ['#00B894','#00CEC9'],
+  ['#FDCB6E','#E17055'], ['#6C5CE7','#74B9FF'],
+  ['#FF7675','#FD79A8'], ['#81ECEC','#55EFC4'],
+];
+
+class Ball {
+  constructor(index) {
+    this.r = 22 + Math.random() * 20;
+    this.reset();
+    this.color = PALETTE[index % PALETTE.length];
+    this.grabbed = false;
+    this.grabOffX = 0;
+    this.grabOffY = 0;
+    this.trail = [];
+  }
+
+  reset() {
+    this.x = Math.random() * (canvas.width - 100) + 50;
+    this.y = Math.random() * (canvas.height * 0.5);
+    this.vx = (Math.random() - 0.5) * 4;
+    this.vy = Math.random() * 2;
+  }
+
+  update(handX, handY, isGrabbing, handActive) {
+    if (this.grabbed) {
+      const tx = handX + this.grabOffX;
+      const ty = handY + this.grabOffY;
+      this.vx = (tx - this.x) * 0.35;
+      this.vy = (ty - this.y) * 0.35;
+      this.x += this.vx;
+      this.y += this.vy;
+    } else {
+      this.vy += GRAVITY;
+      this.vx *= FRICTION;
+      this.x += this.vx;
+      this.y += this.vy;
+
+      // Floor
+      if (this.y + this.r > canvas.height) {
+        this.y = canvas.height - this.r;
+        this.vy *= -DAMPING;
+        this.vx *= 0.85;
+      }
+      // Walls
+      if (this.x - this.r < 0) { this.x = this.r; this.vx *= -0.6; }
+      if (this.x + this.r > canvas.width) { this.x = canvas.width - this.r; this.vx *= -0.6; }
+    }
+
+    // Trail
+    this.trail.push({ x: this.x, y: this.y });
+    if (this.trail.length > 8) this.trail.shift();
+  }
+
+  draw() {
+    // Trail
+    for (let i = 0; i < this.trail.length - 1; i++) {
+      const alpha = (i / this.trail.length) * 0.18;
+      ctx.beginPath();
+      ctx.arc(this.trail[i].x, this.trail[i].y, this.r * 0.5, 0, Math.PI * 2);
+      ctx.fillStyle = this.color[0] + Math.floor(alpha * 255).toString(16).padStart(2,'0');
+      ctx.fill();
+    }
+
+    // Shadow
+    ctx.beginPath();
+    ctx.ellipse(this.x, canvas.height - 4, this.r * 0.8, 6, 0, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(0,0,0,0.25)';
+    ctx.fill();
+
+    // Ball body
+    const grad = ctx.createRadialGradient(
+      this.x - this.r * 0.3, this.y - this.r * 0.3, this.r * 0.1,
+      this.x, this.y, this.r
+    );
+    grad.addColorStop(0, '#ffffff');
+    grad.addColorStop(0.25, this.color[1]);
+    grad.addColorStop(0.7, this.color[0]);
+    grad.addColorStop(1, 'rgba(0,0,0,0.4)');
+
+    ctx.beginPath();
+    ctx.arc(this.x, this.y, this.r, 0, Math.PI * 2);
+    ctx.fillStyle = grad;
+    ctx.fill();
+
+    // Specular
+    ctx.beginPath();
+    ctx.arc(this.x - this.r * 0.28, this.y - this.r * 0.28, this.r * 0.22, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(255,255,255,0.55)';
+    ctx.fill();
+
+    if (this.grabbed) {
+      ctx.beginPath();
+      ctx.arc(this.x, this.y, this.r + 5, 0, Math.PI * 2);
+      ctx.strokeStyle = 'rgba(255,255,255,0.5)';
+      ctx.lineWidth = 2;
+      ctx.stroke();
+    }
+  }
+}
+
+// ── Ball-ball collision ────────────────────────────────────
+function resolveBallCollisions(balls) {
+  for (let i = 0; i < balls.length; i++) {
+    for (let j = i + 1; j < balls.length; j++) {
+      const a = balls[i], b = balls[j];
+      const dx = b.x - a.x, dy = b.y - a.y;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+      const minDist = a.r + b.r;
+      if (dist < minDist && dist > 0) {
+        const nx = dx / dist, ny = dy / dist;
+        const overlap = minDist - dist;
+        if (!a.grabbed) { a.x -= nx * overlap * 0.5; a.y -= ny * overlap * 0.5; }
+        if (!b.grabbed) { b.x += nx * overlap * 0.5; b.y += ny * overlap * 0.5; }
+        const dvx = b.vx - a.vx, dvy = b.vy - a.vy;
+        const dot = dvx * nx + dvy * ny;
+        if (dot < 0) {
+          const impulse = dot * 0.7;
+          if (!a.grabbed) { a.vx += impulse * nx; a.vy += impulse * ny; }
+          if (!b.grabbed) { b.vx -= impulse * nx; b.vy -= impulse * ny; }
+        }
+      }
+    }
+  }
+}
+
+// ── Hand detection helpers ─────────────────────────────────
+function getPalmCenter(landmarks) {
+  const pts = [0,1,5,9,13,17];
+  let sx = 0, sy = 0;
+  pts.forEach(i => { sx += landmarks[i].x; sy += landmarks[i].y; });
+  return { x: sx / pts.length, y: sy / pts.length };
+}
+
+function isHandClosed(landmarks) {
+  // compare fingertip vs pip joint y-position (mirrored canvas: lower y = higher on screen)
+  const fingers = [
+    [8, 6],   // index
+    [12, 10], // middle
+    [16, 14], // ring
+    [20, 18], // pinky
+  ];
+  let closed = 0;
+  fingers.forEach(([tip, pip]) => {
+    if (landmarks[tip].y > landmarks[pip].y) closed++;
+  });
+  return closed >= 3;
+}
+
+// ── Main ───────────────────────────────────────────────────
+let handLandmarker = null;
+let balls = [];
+let lastVideoTime = -1;
+
+async function init() {
+  // Camera
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: 'user', width: 1280, height: 720 }
+    });
+    video.srcObject = stream;
+    await new Promise(r => video.onloadedmetadata = r);
+    video.play();
+  } catch (e) {
+    loadingEl.innerHTML = '<div style="color:#FF6B6B">カメラへのアクセスが許可されていません</div>';
+    return;
+  }
+
+  // MediaPipe
+  const vision = await FilesetResolver.forVisionTasks(
+    "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.12/wasm"
+  );
+  handLandmarker = await HandLandmarker.createFromOptions(vision, {
+    baseOptions: {
+      modelAssetPath: "https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task",
+      delegate: "GPU"
+    },
+    runningMode: "VIDEO",
+    numHands: 2,
+  });
+
+  // Balls
+  balls = Array.from({ length: BALL_COUNT }, (_, i) => new Ball(i));
+
+  loadingEl.style.display = 'none';
+  statusEl.textContent = 'HAND TRACKING ACTIVE';
+
+  requestAnimationFrame(loop);
+}
+
+// hands[0], hands[1] — each: { pos, closed, grabbedBall }
+const hands = [
+  { pos: null, closed: false, grabbedBall: null },
+  { pos: null, closed: false, grabbedBall: null },
+];
+
+function detectHand() {
+  if (!handLandmarker || video.readyState < 2) return;
+  const now = performance.now();
+  if (video.currentTime === lastVideoTime) return;
+  lastVideoTime = video.currentTime;
+
+  const result = handLandmarker.detectForVideo(video, now);
+  const count = result.landmarks ? result.landmarks.length : 0;
+
+  for (let i = 0; i < 2; i++) {
+    if (i < count) {
+      const lm = result.landmarks[i];
+      const palm = getPalmCenter(lm);
+      hands[i].pos = {
+        x: (1 - palm.x) * canvas.width,
+        y: palm.y * canvas.height
+      };
+      hands[i].closed = isHandClosed(lm);
+    } else {
+      // Hand lost — release grabbed ball
+      if (hands[i].grabbedBall) {
+        hands[i].grabbedBall.grabbed = false;
+        hands[i].grabbedBall = null;
+      }
+      hands[i].pos = null;
+      hands[i].closed = false;
+    }
+  }
+}
+
+function drawHandCursor(hand) {
+  if (!hand.pos) return;
+  const { x, y } = hand.pos;
+  const closed = hand.closed;
+
+  ctx.beginPath();
+  ctx.arc(x, y, closed ? 28 : 22, 0, Math.PI * 2);
+  ctx.strokeStyle = closed ? 'rgba(255,200,80,0.8)' : 'rgba(255,255,255,0.5)';
+  ctx.lineWidth = 2.5;
+  ctx.stroke();
+
+  ctx.beginPath();
+  ctx.arc(x, y, 5, 0, Math.PI * 2);
+  ctx.fillStyle = closed ? '#FFEAA7' : 'rgba(255,255,255,0.7)';
+  ctx.fill();
+
+  ctx.strokeStyle = closed ? 'rgba(255,200,80,0.4)' : 'rgba(255,255,255,0.2)';
+  ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(x - 40, y); ctx.lineTo(x + 40, y); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(x, y - 40); ctx.lineTo(x, y + 40); ctx.stroke();
+
+  ctx.fillStyle = closed ? 'rgba(255,200,80,0.8)' : 'rgba(255,255,255,0.4)';
+  ctx.font = '11px Courier New';
+  ctx.fillText(closed ? '✊ GRAB' : '✋ OPEN', x + 32, y - 10);
+}
+
+function processGrab(hand) {
+  if (hand.pos && hand.closed) {
+    if (!hand.grabbedBall) {
+      let closest = null, closestDist = Infinity;
+      for (const b of balls) {
+        if (b.grabbed) continue; // already held by other hand
+        const dx = b.x - hand.pos.x, dy = b.y - hand.pos.y;
+        const d = Math.sqrt(dx*dx + dy*dy);
+        if (d < b.r + 35 && d < closestDist) {
+          closestDist = d;
+          closest = b;
+        }
+      }
+      if (closest) {
+        hand.grabbedBall = closest;
+        closest.grabbed = true;
+        closest.grabOffX = closest.x - hand.pos.x;
+        closest.grabOffY = closest.y - hand.pos.y;
+      }
+    }
+  } else {
+    if (hand.grabbedBall) {
+      hand.grabbedBall.grabbed = false;
+      hand.grabbedBall = null;
+    }
+  }
+}
+
+function loop() {
+  detectHand();
+
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  // Grid bg
+  ctx.strokeStyle = 'rgba(255,255,255,0.03)';
+  ctx.lineWidth = 1;
+  const grid = 60;
+  for (let x = 0; x < canvas.width; x += grid) { ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,canvas.height); ctx.stroke(); }
+  for (let y = 0; y < canvas.height; y += grid) { ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(canvas.width,y); ctx.stroke(); }
+
+  // Process each hand's grab independently
+  for (const hand of hands) processGrab(hand);
+
+  // Update balls — pass both hands so grabbed ball gets the right hand's position
+  for (const b of balls) {
+    // Find which hand (if any) is holding this ball
+    const holder = hands.find(h => h.grabbedBall === b);
+    if (holder) {
+      b.update(holder.pos.x, holder.pos.y, true, true);
+    } else {
+      b.update(0, 0, false, false);
+    }
+  }
+
+  resolveBallCollisions(balls);
+
+  for (const b of balls) b.draw();
+  for (const hand of hands) drawHandCursor(hand);
+
+  requestAnimationFrame(loop);
+}
+
+init();
+</script>
+</body>
+</html>
