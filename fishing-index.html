@@ -415,6 +415,15 @@ font-family: ‘DM Mono’, monospace;
 .tidal-chip .label { color: var(–text-dim); margin-right: 4px; }
 .tidal-chip .val { color: var(–accent); font-weight: 500; }
 
+.decision-badge {
+display: inline-block;
+font-family: ‘DM Mono’, monospace;
+font-size: 0.85rem;
+font-weight: 900;
+letter-spacing: 0.08em;
+padding: 3px 10px;
+border-radius: 4px;
+}
 .score-grade-S { color: #00ff9d; }
 .score-grade-A { color: #00c8ff; }
 .score-grade-B { color: #ffcc00; }
@@ -552,6 +561,13 @@ function getScoreLabel(s) {
   if (s >= 20) return '渋め';
   return '厳しい';
 }
+function getDecision(score, pressureTrend) {
+  if (score >= 70 && pressureTrend >= -0.5) return { label: 'GO',  color: '#00ff9d', desc: '出撃推奨' };
+  if (score >= 50 && pressureTrend > -1)    return { label: 'WAIT', color: '#ffcc00', desc: 'タイミング待ち' };
+  if (score >= 40 && pressureTrend < -1)    return { label: 'WAIT', color: '#ff9000', desc: '気圧下降中・様子見' };
+  return { label: 'SKIP', color: '#ff4560', desc: '今日は見送り' };
+}
+
 function weatherIcon(code) {
   if (code === 0) return '☀️';
   if (code <= 2) return '🌤️';
@@ -618,16 +634,25 @@ function getMaezumeScore(hour, sunriseHour, sunsetHour) {
 
 // 気圧スコア
 function getPressureScore(hourlyPressure) {
-  if (!hourlyPressure || hourlyPressure.length < 2) return 70;
+  if (!hourlyPressure || hourlyPressure.length < 2) return { score: 70, trend: 0, trendLabel: '安定' };
   const min = Math.min(...hourlyPressure);
   const max = Math.max(...hourlyPressure);
   const range = max - min;
   const avg = hourlyPressure.reduce((a,b)=>a+b,0)/hourlyPressure.length;
+  const half = Math.floor(hourlyPressure.length / 2);
+  const avgFirst = hourlyPressure.slice(0, half).reduce((a,b)=>a+b,0) / half;
+  const avgLast  = hourlyPressure.slice(half).reduce((a,b)=>a+b,0) / (hourlyPressure.length - half);
+  const trend = avgLast - avgFirst;
   let score = 100;
-  score -= range * 4; // 変動幅ペナルティ
+  score -= range * 4;
   if (avg < 1005) score -= 20;
   if (avg < 1000) score -= 20;
-  return clamp(Math.round(score), 0, 100);
+  if (trend > 2)        score += 10;
+  else if (trend > 0.5) score += 5;
+  else if (trend < -2)  score -= 15;
+  else if (trend < -0.5) score -= 8;
+  const trendLabel = trend > 1 ? '↑上昇中' : trend < -1 ? '↓下降中' : '→安定';
+  return { score: clamp(Math.round(score), 0, 100), trend: Math.round(trend*10)/10, trendLabel };
 }
 
 // 風スコア
@@ -706,7 +731,10 @@ function computeHourlyScores(dayIdx, catIdx) {
   const weatherCode = dayWeather?.weathercode?.[dayIdx] ?? hourlyWeather?.weathercode?.[dayIdx*24+12] ?? 2;
   const pressureSlice = hourlyWeather?.surface_pressure?.slice(dayIdx*24, dayIdx*24+24) ?? [];
 
-  const pressureScore = getPressureScore(pressureSlice);
+  const pressureResult = getPressureScore(pressureSlice);
+  const pressureScore = pressureResult.score;
+  const pressureTrend = pressureResult.trend;
+  const pressureTrendLabel = pressureResult.trendLabel;
   const weatherScore = getWeatherScore(weatherCode);
   const tempScore = getWaterTempScore(seaTemp, cat.tempRange);
   const tidalScore = tidalInfo.score;
@@ -738,7 +766,7 @@ function computeHourlyScores(dayIdx, catIdx) {
   }
 
   const dayScore = Math.round(hours.reduce((a,b)=>a+b.score,0)/24);
-  return { dayScore, hours, tidalInfo, seaTemp, pressureScore, weatherScore, tempScore, tidalScore, weatherCode };
+  return { dayScore, hours, tidalInfo, seaTemp, pressureScore, pressureTrend, pressureTrendLabel, weatherScore, tempScore, tidalScore, weatherCode };
 }
 
 function computeAllDayScores(catIdx) {
@@ -779,54 +807,112 @@ function calcSunriseSunset(date, lat, lon) {
 }
 
 // =============================================
+// CACHE
+// =============================================
+const CACHE_KEY = 'fishing_index_cache';
+const CACHE_TTL = 60 * 60 * 1000; // 1時間
+
+function saveCache(data) {
+  try {
+    sessionStorage.setItem(CACHE_KEY, JSON.stringify({ ts: Date.now(), data }));
+  } catch(e) {}
+}
+
+function loadCache() {
+  try {
+    const raw = sessionStorage.getItem(CACHE_KEY);
+    if (!raw) return null;
+    const { ts, data } = JSON.parse(raw);
+    if (Date.now() - ts > CACHE_TTL) return null;
+    return data;
+  } catch(e) { return null; }
+}
+
+function clearCache() {
+  try { sessionStorage.removeItem(CACHE_KEY); } catch(e) {}
+}
+
+async function hardRefresh() {
+  clearCache();
+  document.getElementById('status-text').textContent = 'LOADING...';
+  document.getElementById('updated-time').textContent = '';
+  document.getElementById('refresh-btn').textContent = '↺ 取得中...';
+  document.getElementById('refresh-btn').disabled = true;
+  await fetchAll();
+  renderMain();
+  document.getElementById('refresh-btn').textContent = '↺ 再取得';
+  document.getElementById('refresh-btn').disabled = false;
+}
+
+// =============================================
 // DATA FETCHING
 // =============================================
 async function fetchAll() {
   const today = new Date();
 
-  // Fetch weather
-  const weatherUrl = `https://api.open-meteo.com/v1/forecast?latitude=${LAT}&longitude=${LON}&daily=weathercode,windspeed_10m_max,temperature_2m_max&hourly=windspeed_10m,surface_pressure,weathercode&forecast_days=7&timezone=Asia/Tokyo`;
-
-  // Fetch sunrise/sunset for 7 days
-  const sunUrls = Array.from({length: 7}, (_, i) => {
+  // --- 日の出・日没: 先に天文計算でフォールバック値をセット ---
+  state.sunrise = Array.from({length: 7}, (_, i) => {
     const d = new Date(today);
     d.setDate(d.getDate() + i);
-    const ds = d.toISOString().split('T')[0];
-    return `https://api.sunrise-sunset.org/json?lat=${LAT}&lng=${LON}&date=${ds}&formatted=0`;
+    return calcSunriseSunset(d, LAT, LON);
   });
 
-  try {
-    const [weatherRes, ...sunResArr] = await Promise.all([
-      fetch(weatherUrl),
-      ...sunUrls.map(u => fetch(u))
-    ]);
+  // キャッシュ確認
+  const cached = loadCache();
+  if (cached) {
+    state.weather = cached.weather;
+    if (cached.sunrise) state.sunrise = cached.sunrise;
+    const mins = Math.floor((Date.now() - cached.ts) / 60000);
+    document.getElementById('status-text').textContent = 'CACHED';
+    document.getElementById('updated-time').textContent = `${mins}分前のデータ`;
+    return;
+  }
 
+  // --- Open-Meteo 気象データ ---
+  try {
+    const weatherUrl = `https://api.open-meteo.com/v1/forecast?latitude=${LAT}&longitude=${LON}&daily=weathercode,windspeed_10m_max,temperature_2m_max&hourly=windspeed_10m,surface_pressure,weathercode&forecast_days=7&timezone=Asia/Tokyo`;
+    const weatherRes = await fetch(weatherUrl);
     state.weather = await weatherRes.json();
+  } catch(e) {
+    state.weather = null;
+  }
+
+  // --- Sunrise-Sunset API ---
+  try {
+    const sunUrls = Array.from({length: 7}, (_, i) => {
+      const d = new Date(today);
+      d.setDate(d.getDate() + i);
+      const ds = d.toISOString().split('T')[0];
+      return `https://api.sunrise-sunset.org/json?lat=${LAT}&lng=${LON}&date=${ds}&formatted=0`;
+    });
+    const sunResArr = await Promise.all(sunUrls.map(u => fetch(u)));
     state.sunrise = await Promise.all(sunResArr.map(async r => {
       const d = await r.json();
-      // formatted=0 returns UTC ISO strings; convert to JST (UTC+9)
       const toJST = utcStr => {
         const utc = new Date(utcStr);
-        const jst = new Date(utc.getTime() + 9 * 60 * 60 * 1000);
-        return jst;
+        return new Date(utc.getTime() + 9 * 60 * 60 * 1000);
       };
       const sr = toJST(d.results.sunrise);
       const ss = toJST(d.results.sunset);
       return {
         sunrise: sr.getUTCHours() + sr.getUTCMinutes()/60,
-        sunset: ss.getUTCHours() + ss.getUTCMinutes()/60,
+        sunset:  ss.getUTCHours() + ss.getUTCMinutes()/60,
         srStr: `${String(sr.getUTCHours()).padStart(2,'0')}:${String(sr.getUTCMinutes()).padStart(2,'0')}`,
         ssStr: `${String(ss.getUTCHours()).padStart(2,'0')}:${String(ss.getUTCMinutes()).padStart(2,'0')}`
       };
     }));
-
-    document.getElementById('status-text').textContent = 'LIVE';
-    document.getElementById('updated-time').textContent = `UPD ${today.getHours()}:${String(today.getMinutes()).padStart(2,'0')}`;
   } catch(e) {
-    document.getElementById('status-text').textContent = 'OFFLINE';
-    state.weather = null;
-    state.sunrise = null;
+    // 天文計算値をそのまま使用
   }
+
+  // キャッシュ保存
+  if (state.weather) {
+    saveCache({ weather: state.weather, sunrise: state.sunrise, ts: Date.now() });
+  }
+
+  const now2 = new Date();
+  document.getElementById('status-text').textContent = state.weather ? 'LIVE' : 'OFFLINE';
+  document.getElementById('updated-time').textContent = `UPD ${now2.getHours()}:${String(now2.getMinutes()).padStart(2,'0')}`;
 }
 
 // =============================================
@@ -878,16 +964,21 @@ function renderMain() {
     ? `${currentHour}:${currentMins} 現在`
     : `${selDate.getMonth()+1}/${selDate.getDate()} 日間平均`;
 
+  const decision = getDecision(currentScore, sel.pressureTrend ?? 0);
+
   html += `<div class="detail-panel">`;
   html += `<div class="detail-header">
-    <div>
+    <div style="text-align:center">
       <div class="detail-score-big" style="color:${currentColor}">${currentScore}</div>
-      <div class="detail-score-label">/ 100 — グレード <span style="color:${currentColor};font-weight:700">${currentGrade}</span></div>
+      <div class="detail-score-label">/ 100 — ${getScoreLabel(currentScore)}</div>
     </div>
     <div class="detail-meta">
-      <div class="detail-date">${selDate.getMonth()+1}月${selDate.getDate()}日（${days[selDate.getDay()]}）<span style="color:var(--text-dim);font-size:0.75rem">${currentLabel}</span></div>
-      <div style="font-size:0.72rem;color:var(--text-dim);margin-top:2px">${getScoreLabel(currentScore)}</div>
-      <div class="detail-recommendation">${cat.notes}</div>
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
+        <span class="decision-badge" style="background:${decision.color};color:#000">${decision.label}</span>
+        <span style="font-size:0.72rem;color:var(--text-dim)">${decision.desc}</span>
+      </div>
+      <div class="detail-date">${selDate.getMonth()+1}月${selDate.getDate()}日（${days[selDate.getDay()]}）<span style="color:var(--text-dim);font-size:0.72rem"> ${currentLabel}</span></div>
+      <div class="detail-recommendation" style="margin-top:4px">${cat.notes}</div>
     </div>
   </div>`;
 
@@ -911,7 +1002,7 @@ function renderMain() {
   // Score bars
   const barItems = [
     { name: '潮回り', val: sel.tidalScore, label: sel.tidalInfo.type },
-    { name: '気圧安定', val: sel.pressureScore, label: `${sel.pressureScore}pt` },
+    { name: '気圧安定', val: sel.pressureScore, label: `${sel.pressureTrendLabel ?? '→安定'}` },
     { name: '天候', val: sel.weatherScore, label: weatherIcon(sel.weatherCode) },
     { name: '水温適性', val: sel.tempScore, label: `${sel.seaTemp}℃` },
   ];
