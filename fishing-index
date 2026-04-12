@@ -450,6 +450,7 @@ text-align: center;
     <div class="header-status">
       <div><span class="status-dot"></span><span id="status-text">LOADING...</span></div>
       <div style="margin-top:4px;" id="updated-time"></div>
+      <button id="refresh-btn" onclick="hardRefresh()" style="margin-top:6px;background:transparent;border:1px solid var(--border);border-radius:4px;color:var(--text-dim);font-family:'DM Mono',monospace;font-size:0.6rem;padding:3px 7px;cursor:pointer;display:block;width:100%">↺ 再取得</button>
     </div>
   </header>
 
