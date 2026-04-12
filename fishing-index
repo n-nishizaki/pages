@@ -1,0 +1,989 @@
+<!DOCTYPE html>
+
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>釣り指数 — 島根半島</title>
+<link href="https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@300;400;700;900&family=DM+Mono:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0a0e14;
+    --surface: #111820;
+    --surface2: #18222e;
+    --border: #1e2d3d;
+    --accent: #00c8ff;
+    --accent2: #00ff9d;
+    --warn: #ff9000;
+    --danger: #ff4560;
+    --text: #c8d8e8;
+    --text-dim: #5a7a9a;
+    --text-bright: #e8f4ff;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { font-size: 14px; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Zen Kaku Gothic New', sans-serif;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+/* Background grid */
+body::before {
+content: ‘’;
+position: fixed;
+inset: 0;
+background-image:
+linear-gradient(rgba(0,200,255,0.03) 1px, transparent 1px),
+linear-gradient(90deg, rgba(0,200,255,0.03) 1px, transparent 1px);
+background-size: 40px 40px;
+pointer-events: none;
+z-index: 0;
+}
+
+.container {
+position: relative;
+z-index: 1;
+max-width: 960px;
+margin: 0 auto;
+padding: 24px 16px 60px;
+}
+
+/* Header */
+header {
+display: flex;
+align-items: flex-end;
+gap: 16px;
+margin-bottom: 28px;
+border-bottom: 1px solid var(–border);
+padding-bottom: 20px;
+}
+.header-icon {
+font-size: 2.4rem;
+line-height: 1;
+}
+.header-text h1 {
+font-size: 1.5rem;
+font-weight: 900;
+color: var(–text-bright);
+letter-spacing: 0.05em;
+}
+.header-text p {
+font-size: 0.75rem;
+color: var(–text-dim);
+font-family: ‘DM Mono’, monospace;
+margin-top: 2px;
+}
+.header-status {
+margin-left: auto;
+text-align: right;
+font-family: ‘DM Mono’, monospace;
+font-size: 0.7rem;
+color: var(–text-dim);
+}
+.status-dot {
+display: inline-block;
+width: 6px; height: 6px;
+border-radius: 50%;
+background: var(–accent2);
+margin-right: 4px;
+animation: pulse 2s infinite;
+}
+@keyframes pulse {
+0%,100% { opacity: 1; }
+50% { opacity: 0.3; }
+}
+
+/* Controls */
+.controls {
+display: grid;
+grid-template-columns: 1fr 1fr;
+gap: 12px;
+margin-bottom: 24px;
+}
+.control-group {
+background: var(–surface);
+border: 1px solid var(–border);
+border-radius: 8px;
+padding: 12px 14px;
+}
+.control-group label {
+display: block;
+font-size: 0.65rem;
+color: var(–text-dim);
+font-family: ‘DM Mono’, monospace;
+text-transform: uppercase;
+letter-spacing: 0.1em;
+margin-bottom: 8px;
+}
+.location-display {
+font-size: 0.85rem;
+color: var(–accent);
+font-family: ‘DM Mono’, monospace;
+}
+.date-display {
+font-size: 0.85rem;
+color: var(–text-bright);
+font-family: ‘DM Mono’, monospace;
+}
+
+/* Category tabs */
+.cat-tabs {
+display: flex;
+gap: 6px;
+flex-wrap: wrap;
+margin-bottom: 20px;
+}
+.cat-tab {
+background: var(–surface);
+border: 1px solid var(–border);
+border-radius: 20px;
+padding: 6px 14px;
+font-size: 0.78rem;
+color: var(–text-dim);
+cursor: pointer;
+transition: all 0.15s;
+font-family: ‘Zen Kaku Gothic New’, sans-serif;
+white-space: nowrap;
+}
+.cat-tab:hover { border-color: var(–accent); color: var(–text); }
+.cat-tab.active {
+background: var(–accent);
+border-color: var(–accent);
+color: #000;
+font-weight: 700;
+}
+
+/* Loading */
+.loading {
+text-align: center;
+padding: 60px 20px;
+color: var(–text-dim);
+font-family: ‘DM Mono’, monospace;
+font-size: 0.8rem;
+}
+.loading-bar {
+width: 200px;
+height: 2px;
+background: var(–border);
+border-radius: 2px;
+margin: 12px auto;
+overflow: hidden;
+}
+.loading-bar::after {
+content: ‘’;
+display: block;
+height: 100%;
+width: 40%;
+background: var(–accent);
+animation: slide 1.2s infinite ease-in-out;
+}
+@keyframes slide {
+0% { transform: translateX(-100%); }
+100% { transform: translateX(350%); }
+}
+
+/* 7-day grid */
+.day-grid {
+display: grid;
+grid-template-columns: repeat(7, 1fr);
+gap: 6px;
+margin-bottom: 24px;
+}
+.day-card {
+background: var(–surface);
+border: 1px solid var(–border);
+border-radius: 8px;
+padding: 10px 6px;
+text-align: center;
+cursor: pointer;
+transition: all 0.15s;
+position: relative;
+overflow: hidden;
+}
+.day-card::before {
+content: ‘’;
+position: absolute;
+bottom: 0; left: 0; right: 0;
+height: 3px;
+background: var(–score-color, var(–border));
+transition: height 0.2s;
+}
+.day-card:hover { border-color: var(–accent); transform: translateY(-2px); }
+.day-card.selected {
+border-color: var(–accent);
+background: var(–surface2);
+}
+.day-card.selected::before { height: 4px; }
+.day-label {
+font-size: 0.65rem;
+color: var(–text-dim);
+font-family: ‘DM Mono’, monospace;
+margin-bottom: 4px;
+}
+.day-date {
+font-size: 0.7rem;
+color: var(–text-dim);
+margin-bottom: 6px;
+}
+.day-score {
+font-size: 1.3rem;
+font-weight: 900;
+color: var(–score-color, var(–text-dim));
+font-family: ‘DM Mono’, monospace;
+line-height: 1;
+}
+.day-score-label {
+font-size: 0.6rem;
+margin-top: 3px;
+color: var(–text-dim);
+}
+.day-weather-icon { font-size: 1rem; margin-bottom: 3px; }
+
+/* Detail panel */
+.detail-panel {
+background: var(–surface);
+border: 1px solid var(–border);
+border-radius: 10px;
+padding: 20px;
+margin-bottom: 20px;
+}
+.detail-header {
+display: flex;
+align-items: center;
+gap: 12px;
+margin-bottom: 20px;
+padding-bottom: 16px;
+border-bottom: 1px solid var(–border);
+}
+.detail-score-big {
+font-size: 3rem;
+font-weight: 900;
+font-family: ‘DM Mono’, monospace;
+line-height: 1;
+}
+.detail-score-label {
+font-size: 0.7rem;
+color: var(–text-dim);
+margin-top: 2px;
+}
+.detail-meta {
+flex: 1;
+}
+.detail-date {
+font-size: 1rem;
+font-weight: 700;
+color: var(–text-bright);
+margin-bottom: 4px;
+}
+.detail-recommendation {
+font-size: 0.8rem;
+color: var(–text-dim);
+line-height: 1.5;
+}
+
+/* Score bars */
+.score-bars {
+display: grid;
+grid-template-columns: 1fr 1fr;
+gap: 10px;
+margin-bottom: 20px;
+}
+.score-bar-item {
+background: var(–surface2);
+border-radius: 6px;
+padding: 10px 12px;
+}
+.score-bar-header {
+display: flex;
+justify-content: space-between;
+margin-bottom: 6px;
+}
+.score-bar-name {
+font-size: 0.72rem;
+color: var(–text-dim);
+}
+.score-bar-value {
+font-size: 0.72rem;
+font-family: ‘DM Mono’, monospace;
+color: var(–text-bright);
+}
+.score-bar-track {
+height: 4px;
+background: var(–border);
+border-radius: 2px;
+overflow: hidden;
+}
+.score-bar-fill {
+height: 100%;
+border-radius: 2px;
+transition: width 0.5s ease;
+background: var(–accent);
+}
+
+/* Hourly chart */
+.hourly-section { margin-top: 4px; }
+.section-title {
+font-size: 0.65rem;
+color: var(–text-dim);
+font-family: ‘DM Mono’, monospace;
+text-transform: uppercase;
+letter-spacing: 0.1em;
+margin-bottom: 10px;
+}
+.hourly-grid {
+display: flex;
+gap: 4px;
+overflow-x: auto;
+padding-bottom: 4px;
+}
+.hourly-slot {
+flex: 0 0 44px;
+background: var(–surface2);
+border-radius: 6px;
+padding: 8px 4px;
+text-align: center;
+border: 1px solid transparent;
+transition: all 0.15s;
+position: relative;
+}
+.hourly-slot.best {
+border-color: var(–accent2);
+}
+.hourly-slot.best::after {
+content: ‘★’;
+position: absolute;
+top: -7px; left: 50%;
+transform: translateX(-50%);
+font-size: 0.55rem;
+color: var(–accent2);
+}
+.hourly-time {
+font-size: 0.6rem;
+color: var(–text-dim);
+font-family: ‘DM Mono’, monospace;
+margin-bottom: 4px;
+}
+.hourly-score {
+font-size: 0.85rem;
+font-weight: 700;
+font-family: ‘DM Mono’, monospace;
+}
+.hourly-bar {
+width: 100%;
+height: 2px;
+background: var(–border);
+border-radius: 1px;
+margin-top: 4px;
+overflow: hidden;
+}
+.hourly-bar-fill {
+height: 100%;
+border-radius: 1px;
+}
+
+/* Raw data row */
+.raw-data {
+display: flex;
+gap: 8px;
+flex-wrap: wrap;
+margin-top: 16px;
+padding-top: 14px;
+border-top: 1px solid var(–border);
+}
+.raw-chip {
+background: var(–surface2);
+border: 1px solid var(–border);
+border-radius: 4px;
+padding: 4px 8px;
+font-size: 0.65rem;
+font-family: ‘DM Mono’, monospace;
+color: var(–text-dim);
+}
+.raw-chip span { color: var(–text-bright); }
+
+/* Tidal info */
+.tidal-row {
+display: flex;
+gap: 8px;
+margin-top: 12px;
+flex-wrap: wrap;
+}
+.tidal-chip {
+background: var(–surface2);
+border-radius: 4px;
+padding: 5px 10px;
+font-size: 0.68rem;
+font-family: ‘DM Mono’, monospace;
+}
+.tidal-chip .label { color: var(–text-dim); margin-right: 4px; }
+.tidal-chip .val { color: var(–accent); font-weight: 500; }
+
+.score-grade-S { color: #00ff9d; }
+.score-grade-A { color: #00c8ff; }
+.score-grade-B { color: #ffcc00; }
+.score-grade-C { color: #ff9000; }
+.score-grade-D { color: #ff4560; }
+
+.error-msg {
+background: rgba(255,69,96,0.1);
+border: 1px solid var(–danger);
+border-radius: 8px;
+padding: 16px;
+font-size: 0.8rem;
+color: var(–danger);
+text-align: center;
+}
+
+@media (max-width: 600px) {
+.day-grid { grid-template-columns: repeat(4, 1fr); }
+.score-bars { grid-template-columns: 1fr; }
+.controls { grid-template-columns: 1fr; }
+}
+</style>
+
+</head>
+<body>
+<div class="container">
+  <header>
+    <div class="header-icon">🎣</div>
+    <div class="header-text">
+      <h1>釣り指数</h1>
+      <p>SHIMANE PENINSULA FISHING INDEX</p>
+    </div>
+    <div class="header-status">
+      <div><span class="status-dot"></span><span id="status-text">LOADING...</span></div>
+      <div style="margin-top:4px;" id="updated-time"></div>
+    </div>
+  </header>
+
+  <div class="controls">
+    <div class="control-group">
+      <label>📍 観測地点</label>
+      <div class="location-display">島根半島 / 松江市北部海岸<br><span style="font-size:0.65rem;color:var(--text-dim)">35.55°N 133.05°E</span></div>
+    </div>
+    <div class="control-group">
+      <label>📅 予報期間</label>
+      <div class="date-display" id="date-range-display">取得中...</div>
+    </div>
+  </div>
+
+  <div class="cat-tabs" id="cat-tabs"></div>
+
+  <div id="main-content">
+    <div class="loading">
+      <div>気象データ取得中...</div>
+      <div class="loading-bar"></div>
+      <div style="margin-top:8px;font-size:0.65rem;">Open-Meteo API / Sunrise-Sunset API</div>
+    </div>
+  </div>
+</div>
+
+<script>
+// =============================================
+// CONFIG
+// =============================================
+const LAT = 35.55;
+const LON = 133.05;
+
+// 島根半島月別平均水温（日本海側、実測値ベース近似）
+const MONTHLY_SEA_TEMP = [9,8,9,12,16,20,24,26,25,21,16,11]; // Jan=0
+
+// カテゴリ定義
+const CATEGORIES = [
+  {
+    id: 'pelagic', name: '🐟 回遊青物系', species: 'アジ・サバ・ハマチ・サワラ',
+    weights: { tide: 0.25, tideMove: 0.20, maezume: 0.20, pressure: 0.15, wind: 0.10, weather: 0.05, waterTemp: 0.05 },
+    tempRange: [14, 28], windMax: 8, notes: '潮流とベイト連動。大潮・マズメが重なると好機。'
+  },
+  {
+    id: 'seabass', name: '🎣 河口シーバス系', species: 'シーバス（スズキ）',
+    weights: { tide: 0.22, tideMove: 0.22, maezume: 0.18, pressure: 0.12, wind: 0.08, weather: 0.08, waterTemp: 0.10 },
+    tempRange: [10, 26], windMax: 8, notes: '潮目・流れ変化点がトリガー。河口付近は下げ潮が好条件。'
+  },
+  {
+    id: 'blackbream', name: '🦀 チヌ・クロダイ系', species: 'チヌ・クロダイ',
+    weights: { tide: 0.20, tideMove: 0.10, maezume: 0.10, pressure: 0.15, wind: 0.10, weather: 0.10, waterTemp: 0.25 },
+    tempRange: [12, 28], windMax: 7, notes: '満潮前後の潮位高め時間帯が有効。水温15℃以上で活性。'
+  },
+  {
+    id: 'rockfish', name: '🪨 根魚夜釣り系', species: 'メバル・カサゴ・アイナメ',
+    weights: { tide: 0.10, tideMove: 0.08, maezume: 0.25, pressure: 0.12, wind: 0.10, weather: 0.15, waterTemp: 0.20 },
+    tempRange: [8, 22], windMax: 6, notes: 'マズメ〜夜間が主戦場。曇天・低光量が有利。居着きなので場所選択が最重要。'
+  },
+  {
+    id: 'flatfish', name: '🏖️ 砂底底物系', species: 'カレイ・キス・ハゼ',
+    weights: { tide: 0.10, tideMove: 0.05, maezume: 0.10, pressure: 0.15, wind: 0.15, weather: 0.10, waterTemp: 0.35 },
+    tempRange: [8, 25], windMax: 7, notes: '水温安定期が好条件。底潮と砂地の濁り具合が重要。潮感度は低め。'
+  },
+  {
+    id: 'squid', name: '🦑 イカ・タコ系', species: 'アオリイカ・コウイカ・マダコ',
+    weights: { tide: 0.20, tideMove: 0.15, maezume: 0.20, pressure: 0.10, wind: 0.10, weather: 0.05, waterTemp: 0.20 },
+    tempRange: [14, 28], windMax: 5, notes: '中潮が安定。夕〜夜が主戦場。凪条件必須。水温15℃以上で活性急増。'
+  }
+
+];
+
+// =============================================
+// STATE
+// =============================================
+let state = {
+  selectedCat: 0,
+  selectedDay: 0,
+  weather: null,
+  marine: null,
+  sunrise: null,
+  scores: null
+};
+
+// =============================================
+// UTILS
+// =============================================
+function getScoreColor(s) {
+  if (s >= 80) return '#00ff9d';
+  if (s >= 60) return '#00c8ff';
+  if (s >= 40) return '#ffcc00';
+  if (s >= 20) return '#ff9000';
+  return '#ff4560';
+}
+function getScoreGrade(s) {
+  if (s >= 80) return 'S';
+  if (s >= 60) return 'A';
+  if (s >= 40) return 'B';
+  if (s >= 20) return 'C';
+  return 'D';
+}
+function getScoreLabel(s) {
+  if (s >= 80) return '絶好調';
+  if (s >= 60) return '好条件';
+  if (s >= 40) return '普通';
+  if (s >= 20) return '渋め';
+  return '厳しい';
+}
+function weatherIcon(code) {
+  if (code === 0) return '☀️';
+  if (code <= 2) return '🌤️';
+  if (code <= 3) return '☁️';
+  if (code <= 48) return '🌫️';
+  if (code <= 67) return '🌧️';
+  if (code <= 77) return '❄️';
+  if (code <= 82) return '🌦️';
+  return '⛈️';
+}
+function clamp(v, min, max) { return Math.max(min, Math.min(max, v)); }
+
+// 天文潮汐近似（月齢ベース）
+function getTidalInfo(date) {
+  // 新月基準日（2000年1月6日）からの経過日数
+  const epoch = new Date(2000, 0, 6);
+  const days = (date - epoch) / 86400000;
+  const lunarCycle = 29.53058867;
+  const age = ((days % lunarCycle) + lunarCycle) % lunarCycle;
+
+  // 潮回り
+  let tidalType, tidalScore;
+  const dist = Math.min(age, lunarCycle - age);
+  const distHalf = Math.min(Math.abs(age - lunarCycle/2), Math.abs(age - lunarCycle/2 - lunarCycle/2));
+
+  const nearNew = age < 2 || age > 27.5;
+  const nearFull = age > 12.5 && age < 17;
+  const nearHalf = (age > 6 && age < 9) || (age > 20 && age < 23);
+
+  if (nearNew || nearFull) { tidalType = '大潮'; tidalScore = 100; }
+  else if ((age >= 2 && age <= 5) || (age >= 17 && age <= 20) || (age >= 24 && age <= 27)) {
+    tidalType = '中潮'; tidalScore = 75;
+  } else if (nearHalf) { tidalType = '小潮'; tidalScore = 40; }
+  else { tidalType = '長潮'; tidalScore = 20; }
+
+  // 満潮・干潮時刻（近似：12時間25分周期）
+  const tideInterval = 12 * 60 + 25; // minutes
+  const baseMinutes = (age / lunarCycle) * tideInterval * 2;
+  const high1 = Math.floor(baseMinutes % (24 * 60));
+  const high2 = (high1 + tideInterval) % (24 * 60);
+  const low1 = (high1 + tideInterval / 2) % (24 * 60);
+  const low2 = (high2 + tideInterval / 2) % (24 * 60);
+
+  const fmt = m => `${String(Math.floor(m/60)).padStart(2,'0')}:${String(Math.floor(m%60)).padStart(2,'0')}`;
+
+  return {
+    age: age.toFixed(1),
+    type: tidalType,
+    score: tidalScore,
+    highs: [fmt(high1), fmt(high2)],
+    lows: [fmt(low1), fmt(low2)]
+  };
+}
+
+// マズメスコア計算
+function getMaezumeScore(hour, sunriseHour, sunsetHour) {
+  const dawnDiff = Math.abs(hour - sunriseHour);
+  const duskDiff = Math.abs(hour - sunsetHour);
+  const minDiff = Math.min(dawnDiff, duskDiff);
+  if (minDiff <= 0.5) return 100;
+  if (minDiff <= 1) return 80;
+  if (minDiff <= 1.5) return 55;
+  if (minDiff <= 2) return 30;
+  return 0;
+}
+
+// 気圧スコア
+function getPressureScore(hourlyPressure) {
+  if (!hourlyPressure || hourlyPressure.length < 2) return 70;
+  const min = Math.min(...hourlyPressure);
+  const max = Math.max(...hourlyPressure);
+  const range = max - min;
+  const avg = hourlyPressure.reduce((a,b)=>a+b,0)/hourlyPressure.length;
+  let score = 100;
+  score -= range * 4; // 変動幅ペナルティ
+  if (avg < 1005) score -= 20;
+  if (avg < 1000) score -= 20;
+  return clamp(Math.round(score), 0, 100);
+}
+
+// 風スコア
+function getWindScore(windspeed, catWindMax) {
+  if (windspeed < 1) return 60;
+  if (windspeed <= 3) return 85;
+  if (windspeed <= catWindMax) return 100;
+  if (windspeed <= catWindMax + 2) return 60;
+  if (windspeed <= catWindMax + 5) return 30;
+  return 0;
+}
+
+// 天気スコア
+function getWeatherScore(code) {
+  if (code <= 1) return 70; // 快晴は光量多め→やや不利
+  if (code <= 2) return 85;
+  if (code <= 3) return 100; // 曇り最良
+  if (code <= 48) return 70; // 霧
+  if (code <= 55) return 80; // 小雨
+  if (code <= 67) return 40; // 雨
+  return 20;
+}
+
+// 水温スコア
+function getWaterTempScore(seaTemp, tempRange) {
+  const [tMin, tMax] = tempRange;
+  const mid = (tMin + tMax) / 2;
+  if (seaTemp >= tMin && seaTemp <= tMax) {
+    const dist = Math.abs(seaTemp - mid) / (tMax - tMin) * 2;
+    return Math.round(100 - dist * 20);
+  }
+  const outside = seaTemp < tMin ? tMin - seaTemp : seaTemp - tMax;
+  return clamp(100 - outside * 8, 0, 100);
+}
+
+// 潮動き出しスコア（高潮・低潮前後1〜2時間が動き始め）
+function getTideMoveScore(hour, tidalInfo) {
+  const parseHour = str => parseInt(str.split(':')[0]) + parseInt(str.split(':')[1])/60;
+  const times = [...tidalInfo.highs, ...tidalInfo.lows].map(parseHour);
+  let minDiff = Infinity;
+  for (const t of times) {
+    const d = Math.abs(hour - t);
+    minDiff = Math.min(minDiff, d, Math.abs(d - 24));
+  }
+  // 潮変わり30分前〜1.5時間後が最も動く
+  if (minDiff <= 0.5) return 90;
+  if (minDiff <= 1) return 100;
+  if (minDiff <= 1.5) return 85;
+  if (minDiff <= 2) return 60;
+  if (minDiff <= 3) return 30;
+  return 10;
+}
+
+// =============================================
+// SCORING ENGINE
+// =============================================
+function computeHourlyScores(dayIdx, catIdx) {
+  const cat = CATEGORIES[catIdx];
+  const w = cat.weights;
+  const date = new Date();
+  date.setDate(date.getDate() + dayIdx);
+  date.setHours(0,0,0,0);
+
+  const tidalInfo = getTidalInfo(date);
+  const month = date.getMonth();
+  const seaTemp = MONTHLY_SEA_TEMP[month];
+
+  const sunData = state.sunrise?.[dayIdx];
+  const sunriseHour = sunData ? sunData.sunrise : 6;
+  const sunsetHour = sunData ? sunData.sunset : 18;
+
+  const dayWeather = state.weather?.daily;
+  const hourlyWeather = state.weather?.hourly;
+  const weatherCode = dayWeather?.weathercode?.[dayIdx] ?? hourlyWeather?.weathercode?.[dayIdx*24+12] ?? 2;
+  const pressureSlice = hourlyWeather?.surface_pressure?.slice(dayIdx*24, dayIdx*24+24) ?? [];
+
+  const pressureScore = getPressureScore(pressureSlice);
+  const weatherScore = getWeatherScore(weatherCode);
+  const tempScore = getWaterTempScore(seaTemp, cat.tempRange);
+  const tidalScore = tidalInfo.score;
+
+  const hours = [];
+  for (let h = 0; h < 24; h++) {
+    const windspeed = hourlyWeather?.windspeed_10m?.[dayIdx*24+h] ?? 4;
+    const windMax = cat.windMax ?? 7;
+    const windScore = getWindScore(windspeed, windMax);
+    const maezumeScore = getMaezumeScore(h, sunriseHour, sunsetHour);
+    const tideMoveScore = getTideMoveScore(h, tidalInfo);
+
+    const total =
+      tidalScore * w.tide +
+      tideMoveScore * w.tideMove +
+      maezumeScore * w.maezume +
+      pressureScore * w.pressure +
+      windScore * w.wind +
+      weatherScore * w.weather +
+      tempScore * w.waterTemp;
+
+    hours.push({
+      hour: h,
+      score: Math.round(clamp(total, 0, 100)),
+      windspeed: windspeed.toFixed(1),
+      maezume: maezumeScore,
+      tideMove: tideMoveScore
+    });
+  }
+
+  const dayScore = Math.round(hours.reduce((a,b)=>a+b.score,0)/24);
+  return { dayScore, hours, tidalInfo, seaTemp, pressureScore, weatherScore, tempScore, tidalScore, weatherCode };
+}
+
+function computeAllDayScores(catIdx) {
+  return Array.from({length: 7}, (_, i) => computeHourlyScores(i, catIdx));
+}
+
+// =============================================
+// 天文計算による日の出・日没（フォールバック用）
+// =============================================
+function calcSunriseSunset(date, lat, lon) {
+  const rad = Math.PI / 180;
+  const dayOfYear = Math.floor((date - new Date(date.getFullYear(), 0, 0)) / 86400000);
+  const B = (360 / 365) * (dayOfYear - 81) * rad;
+  const decl = 23.45 * Math.sin(B) * rad;
+  const latRad = lat * rad;
+
+  const cosH = -Math.tan(latRad) * Math.tan(decl);
+  if (cosH < -1 || cosH > 1) return null; // 白夜・極夜
+
+  const H = Math.acos(cosH) / rad; // 時角（度）
+  const eqTime = 9.87 * Math.sin(2 * B) - 7.53 * Math.cos(B) - 1.5 * Math.sin(B); // 分
+  const lstCorr = 4 * (lon - 135) + eqTime; // 日本標準時(135°E)からの補正（分）
+
+  const sunriseMin = 720 - H * 4 - lstCorr;
+  const sunsetMin  = 720 + H * 4 - lstCorr;
+
+  const fmt = min => {
+    const h = Math.floor(min / 60);
+    const m = Math.floor(min % 60);
+    return {
+      hour: h + m / 60,
+      str: `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}`
+    };
+  };
+  const sr = fmt(sunriseMin);
+  const ss = fmt(sunsetMin);
+  return { sunrise: sr.hour, sunset: ss.hour, srStr: sr.str, ssStr: ss.str };
+}
+
+// =============================================
+// DATA FETCHING
+// =============================================
+async function fetchAll() {
+  const today = new Date();
+
+  // Fetch weather
+  const weatherUrl = `https://api.open-meteo.com/v1/forecast?latitude=${LAT}&longitude=${LON}&daily=weathercode,windspeed_10m_max,temperature_2m_max&hourly=windspeed_10m,surface_pressure,weathercode&forecast_days=7&timezone=Asia/Tokyo`;
+
+  // Fetch sunrise/sunset for 7 days
+  const sunUrls = Array.from({length: 7}, (_, i) => {
+    const d = new Date(today);
+    d.setDate(d.getDate() + i);
+    const ds = d.toISOString().split('T')[0];
+    return `https://api.sunrise-sunset.org/json?lat=${LAT}&lng=${LON}&date=${ds}&formatted=0`;
+  });
+
+  try {
+    const [weatherRes, ...sunResArr] = await Promise.all([
+      fetch(weatherUrl),
+      ...sunUrls.map(u => fetch(u))
+    ]);
+
+    state.weather = await weatherRes.json();
+    state.sunrise = await Promise.all(sunResArr.map(async r => {
+      const d = await r.json();
+      // formatted=0 returns UTC ISO strings; convert to JST (UTC+9)
+      const toJST = utcStr => {
+        const utc = new Date(utcStr);
+        const jst = new Date(utc.getTime() + 9 * 60 * 60 * 1000);
+        return jst;
+      };
+      const sr = toJST(d.results.sunrise);
+      const ss = toJST(d.results.sunset);
+      return {
+        sunrise: sr.getUTCHours() + sr.getUTCMinutes()/60,
+        sunset: ss.getUTCHours() + ss.getUTCMinutes()/60,
+        srStr: `${String(sr.getUTCHours()).padStart(2,'0')}:${String(sr.getUTCMinutes()).padStart(2,'0')}`,
+        ssStr: `${String(ss.getUTCHours()).padStart(2,'0')}:${String(ss.getUTCMinutes()).padStart(2,'0')}`
+      };
+    }));
+
+    document.getElementById('status-text').textContent = 'LIVE';
+    document.getElementById('updated-time').textContent = `UPD ${today.getHours()}:${String(today.getMinutes()).padStart(2,'0')}`;
+  } catch(e) {
+    document.getElementById('status-text').textContent = 'OFFLINE';
+    state.weather = null;
+    state.sunrise = null;
+  }
+}
+
+// =============================================
+// RENDER
+// =============================================
+function renderCatTabs() {
+  const el = document.getElementById('cat-tabs');
+  el.innerHTML = CATEGORIES.map((c, i) =>
+    `<button class="cat-tab ${i === state.selectedCat ? 'active' : ''}" onclick="selectCat(${i})">${c.name}</button>`
+  ).join('');
+}
+
+function renderMain() {
+  const scores = computeAllDayScores(state.selectedCat);
+  state.scores = scores;
+
+  const today = new Date();
+  const days = ['日','月','火','水','木','金','土'];
+
+  // Date range
+  const end = new Date(today);
+  end.setDate(end.getDate() + 6);
+  document.getElementById('date-range-display').textContent =
+    `${today.getMonth()+1}/${today.getDate()} — ${end.getMonth()+1}/${end.getDate()}`;
+
+  let html = '';
+
+  // 7-day grid
+  html += `<div class="day-grid">`;
+  scores.forEach((s, i) => {
+    const d = new Date(today);
+    d.setDate(d.getDate() + i);
+    const color = getScoreColor(s.dayScore);
+    const label = i === 0 ? '今日' : i === 1 ? '明日' : `${days[d.getDay()]}曜`;
+    const wIcon = weatherIcon(s.weatherCode);
+    html += `
+      <div class="day-card ${i === state.selectedDay ? 'selected' : ''}"
+           style="--score-color:${color}"
+           onclick="selectDay(${i})">
+        <div class="day-label">${label}</div>
+        <div class="day-date">${d.getMonth()+1}/${d.getDate()}</div>
+        <div class="day-weather-icon">${wIcon}</div>
+        <div class="day-score" style="color:${color}">${s.dayScore}</div>
+        <div class="day-score-label">${getScoreLabel(s.dayScore)}</div>
+      </div>`;
+  });
+  html += `</div>`;
+
+  // Detail panel
+  const sel = scores[state.selectedDay];
+  const selDate = new Date(today);
+  selDate.setDate(selDate.getDate() + state.selectedDay);
+  const cat = CATEGORIES[state.selectedCat];
+  const grade = getScoreGrade(sel.dayScore);
+  const color = getScoreColor(sel.dayScore);
+  const sunData = state.sunrise?.[state.selectedDay];
+  const srStr = sunData?.srStr ?? '--:--';
+  const ssStr = sunData?.ssStr ?? '--:--';
+
+  html += `<div class="detail-panel">`;
+  html += `<div class="detail-header">
+    <div>
+      <div class="detail-score-big score-grade-${grade}" style="color:${color}">${sel.dayScore}</div>
+      <div class="detail-score-label">/ 100 — グレード <span style="color:${color};font-weight:700">${grade}</span></div>
+    </div>
+    <div class="detail-meta">
+      <div class="detail-date">${selDate.getMonth()+1}月${selDate.getDate()}日（${days[selDate.getDay()]}）${getScoreLabel(sel.dayScore)}</div>
+      <div class="detail-recommendation">${cat.notes}</div>
+    </div>
+  </div>`;
+
+  // Score bars
+  const barItems = [
+    { name: '潮回り', val: sel.tidalScore, label: sel.tidalInfo.type },
+    { name: '気圧安定', val: sel.pressureScore, label: `${sel.pressureScore}pt` },
+    { name: '天候', val: sel.weatherScore, label: weatherIcon(sel.weatherCode) },
+    { name: '水温適性', val: sel.tempScore, label: `${sel.seaTemp}℃` },
+  ];
+  html += `<div class="score-bars">`;
+  barItems.forEach(b => {
+    const bc = getScoreColor(b.val);
+    html += `<div class="score-bar-item">
+      <div class="score-bar-header">
+        <span class="score-bar-name">${b.name}</span>
+        <span class="score-bar-value" style="color:${bc}">${b.val} <span style="color:var(--text-dim)">${b.label}</span></span>
+      </div>
+      <div class="score-bar-track"><div class="score-bar-fill" style="width:${b.val}%;background:${bc}"></div></div>
+    </div>`;
+  });
+  html += `</div>`;
+
+  // Hourly
+  html += `<div class="hourly-section">
+    <div class="section-title">時間別釣り指数</div>
+    <div class="hourly-grid">`;
+  const maxScore = Math.max(...sel.hours.map(h=>h.score));
+  sel.hours.forEach(h => {
+    const best = h.score === maxScore;
+    const hc = getScoreColor(h.score);
+    html += `<div class="hourly-slot ${best ? 'best' : ''}">
+      <div class="hourly-time">${String(h.hour).padStart(2,'0')}時</div>
+      <div class="hourly-score" style="color:${hc}">${h.score}</div>
+      <div class="hourly-bar"><div class="hourly-bar-fill" style="width:${h.score}%;background:${hc}"></div></div>
+    </div>`;
+  });
+  html += `</div></div>`;
+
+  // Tidal info
+  html += `<div class="tidal-row">
+    <div class="tidal-chip"><span class="label">潮回り</span><span class="val">${sel.tidalInfo.type}</span></div>
+    <div class="tidal-chip"><span class="label">月齢</span><span class="val">${sel.tidalInfo.age}</span></div>
+    <div class="tidal-chip"><span class="label">満潮</span><span class="val">${sel.tidalInfo.highs.join(' / ')}</span></div>
+    <div class="tidal-chip"><span class="label">干潮</span><span class="val">${sel.tidalInfo.lows.join(' / ')}</span></div>
+    <div class="tidal-chip"><span class="label">日の出</span><span class="val">${srStr}</span></div>
+    <div class="tidal-chip"><span class="label">日没</span><span class="val">${ssStr}</span></div>
+  </div>`;
+
+  html += `</div>`; // end detail-panel
+
+  document.getElementById('main-content').innerHTML = html;
+}
+
+// =============================================
+// EVENTS
+// =============================================
+function selectCat(i) {
+  state.selectedCat = i;
+  renderCatTabs();
+  renderMain();
+}
+
+function selectDay(i) {
+  state.selectedDay = i;
+  renderMain();
+}
+
+// =============================================
+// INIT
+// =============================================
+async function init() {
+  renderCatTabs();
+  await fetchAll();
+  renderMain();
+}
+
+init();
+</script>
+
+</body>
+</html>
