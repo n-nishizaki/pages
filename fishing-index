@@ -96,38 +96,23 @@ animation: pulse 2s infinite;
 50% { opacity: 0.3; }
 }
 
-/* Controls */
-.controls {
-display: grid;
-grid-template-columns: 1fr 1fr;
-gap: 12px;
-margin-bottom: 24px;
-}
-.control-group {
+.info-bar {
+display: flex;
+align-items: center;
+gap: 10px;
 background: var(–surface);
 border: 1px solid var(–border);
 border-radius: 8px;
-padding: 12px 14px;
-}
-.control-group label {
-display: block;
-font-size: 0.65rem;
-color: var(–text-dim);
+padding: 8px 14px;
+margin-bottom: 16px;
 font-family: ‘DM Mono’, monospace;
-text-transform: uppercase;
-letter-spacing: 0.1em;
-margin-bottom: 8px;
+font-size: 0.72rem;
+flex-wrap: wrap;
 }
-.location-display {
-font-size: 0.85rem;
-color: var(–accent);
-font-family: ‘DM Mono’, monospace;
-}
-.date-display {
-font-size: 0.85rem;
-color: var(–text-bright);
-font-family: ‘DM Mono’, monospace;
-}
+.info-bar-item { display: flex; align-items: center; gap: 6px; }
+.info-bar-val { color: var(–accent); }
+.info-bar-sub { color: var(–text-dim); font-size: 0.62rem; margin-left: 4px; }
+.info-bar-sep { color: var(–border); font-size: 1rem; }
 
 /* Category tabs */
 .cat-tabs {
@@ -349,8 +334,17 @@ border: 1px solid transparent;
 transition: all 0.15s;
 position: relative;
 }
-.hourly-slot.best {
-border-color: var(–accent2);
+.hourly-slot.current-hour {
+border-color: var(–accent);
+background: rgba(0,200,255,0.08);
+}
+.hourly-slot.current-hour::before {
+content: ‘▼’;
+position: absolute;
+top: -10px; left: 50%;
+transform: translateX(-50%);
+font-size: 0.5rem;
+color: var(–accent);
 }
 .hourly-slot.best::after {
 content: ‘★’;
@@ -459,15 +453,10 @@ text-align: center;
     </div>
   </header>
 
-  <div class="controls">
-    <div class="control-group">
-      <label>📍 観測地点</label>
-      <div class="location-display">島根半島 / 松江市北部海岸<br><span style="font-size:0.65rem;color:var(--text-dim)">35.55°N 133.05°E</span></div>
-    </div>
-    <div class="control-group">
-      <label>📅 予報期間</label>
-      <div class="date-display" id="date-range-display">取得中...</div>
-    </div>
+  <div class="info-bar">
+    <span class="info-bar-item">📍 <span class="info-bar-val">島根半島 / 松江市北部海岸</span><span class="info-bar-sub">35.55°N 133.05°E</span></span>
+    <span class="info-bar-sep">|</span>
+    <span class="info-bar-item">📅 <span class="info-bar-val" id="date-range-display">取得中...</span></span>
   </div>
 
   <div class="cat-tabs" id="cat-tabs"></div>
@@ -582,20 +571,18 @@ function getTidalInfo(date) {
   const lunarCycle = 29.53058867;
   const age = ((days % lunarCycle) + lunarCycle) % lunarCycle;
 
-  // 潮回り
+  // 潮汐サイクル分類（実際の大潮/中潮/小潮/長潮/若潮サイクルに準拠）
   let tidalType, tidalScore;
-  const dist = Math.min(age, lunarCycle - age);
-  const distHalf = Math.min(Math.abs(age - lunarCycle/2), Math.abs(age - lunarCycle/2 - lunarCycle/2));
-
-  const nearNew = age < 2 || age > 27.5;
-  const nearFull = age > 12.5 && age < 17;
-  const nearHalf = (age > 6 && age < 9) || (age > 20 && age < 23);
-
-  if (nearNew || nearFull) { tidalType = '大潮'; tidalScore = 100; }
-  else if ((age >= 2 && age <= 5) || (age >= 17 && age <= 20) || (age >= 24 && age <= 27)) {
-    tidalType = '中潮'; tidalScore = 75;
-  } else if (nearHalf) { tidalType = '小潮'; tidalScore = 40; }
-  else { tidalType = '長潮'; tidalScore = 20; }
+  if (age < 2 || age > 27.5)           { tidalType = '大潮'; tidalScore = 100; } // 新月前後
+  else if (age > 12.5 && age < 16)     { tidalType = '大潮'; tidalScore = 100; } // 満月前後
+  else if ((age >= 2  && age < 5) ||
+           (age >= 16 && age < 18) ||
+           (age >= 25 && age <= 27.5)) { tidalType = '中潮'; tidalScore = 75; }
+  else if ((age >= 5  && age < 8) ||
+           (age >= 18 && age < 21))    { tidalType = '小潮'; tidalScore = 40; }
+  else if ((age >= 10 && age < 12.5) ||
+           (age >= 23 && age < 25))    { tidalType = '若潮'; tidalScore = 35; }
+  else                                  { tidalType = '長潮'; tidalScore = 20; } // 8-10、21-23付近
 
   // 満潮・干潮時刻（近似：12時間25分周期）
   const tideInterval = 12 * 60 + 25; // minutes
@@ -668,11 +655,13 @@ function getWaterTempScore(seaTemp, tempRange) {
   const [tMin, tMax] = tempRange;
   const mid = (tMin + tMax) / 2;
   if (seaTemp >= tMin && seaTemp <= tMax) {
-    const dist = Math.abs(seaTemp - mid) / (tMax - tMin) * 2;
-    return Math.round(100 - dist * 20);
+    // 範囲内：中心付近が最高、端に近づくと最大10pt減
+    const dist = Math.abs(seaTemp - mid) / ((tMax - tMin) / 2);
+    return Math.round(100 - dist * 10);
   }
+  // 範囲外：1℃につき15ptペナルティ（2℃外→70、5℃外→25）
   const outside = seaTemp < tMin ? tMin - seaTemp : seaTemp - tMax;
-  return clamp(100 - outside * 8, 0, 100);
+  return clamp(Math.round(100 - outside * 15), 0, 100);
 }
 
 // 潮動き出しスコア（高潮・低潮前後1〜2時間が動き始め）
@@ -864,27 +853,6 @@ function renderMain() {
 
   let html = '';
 
-  // 7-day grid
-  html += `<div class="day-grid">`;
-  scores.forEach((s, i) => {
-    const d = new Date(today);
-    d.setDate(d.getDate() + i);
-    const color = getScoreColor(s.dayScore);
-    const label = i === 0 ? '今日' : i === 1 ? '明日' : `${days[d.getDay()]}曜`;
-    const wIcon = weatherIcon(s.weatherCode);
-    html += `
-      <div class="day-card ${i === state.selectedDay ? 'selected' : ''}"
-           style="--score-color:${color}"
-           onclick="selectDay(${i})">
-        <div class="day-label">${label}</div>
-        <div class="day-date">${d.getMonth()+1}/${d.getDate()}</div>
-        <div class="day-weather-icon">${wIcon}</div>
-        <div class="day-score" style="color:${color}">${s.dayScore}</div>
-        <div class="day-score-label">${getScoreLabel(s.dayScore)}</div>
-      </div>`;
-  });
-  html += `</div>`;
-
   // Detail panel
   const sel = scores[state.selectedDay];
   const selDate = new Date(today);
@@ -896,17 +864,48 @@ function renderMain() {
   const srStr = sunData?.srStr ?? '--:--';
   const ssStr = sunData?.ssStr ?? '--:--';
 
+  // 現在時刻スコア（今日選択中なら現在時刻、それ以外は日スコア）
+  const now = new Date();
+  const currentHour = now.getHours();
+  const isToday = state.selectedDay === 0;
+  const displayHour = isToday ? currentHour : null;
+  const currentScore = displayHour !== null ? sel.hours[displayHour].score : sel.dayScore;
+  const currentGrade = getScoreGrade(currentScore);
+  const currentColor = getScoreColor(currentScore);
+  const currentMins = String(now.getMinutes()).padStart(2,'0');
+  const currentLabel = displayHour !== null
+    ? `${currentHour}:${currentMins} 現在`
+    : `${selDate.getMonth()+1}/${selDate.getDate()} 日間平均`;
+
   html += `<div class="detail-panel">`;
   html += `<div class="detail-header">
     <div>
-      <div class="detail-score-big score-grade-${grade}" style="color:${color}">${sel.dayScore}</div>
-      <div class="detail-score-label">/ 100 — グレード <span style="color:${color};font-weight:700">${grade}</span></div>
+      <div class="detail-score-big" style="color:${currentColor}">${currentScore}</div>
+      <div class="detail-score-label">/ 100 — グレード <span style="color:${currentColor};font-weight:700">${currentGrade}</span></div>
     </div>
     <div class="detail-meta">
-      <div class="detail-date">${selDate.getMonth()+1}月${selDate.getDate()}日（${days[selDate.getDay()]}）${getScoreLabel(sel.dayScore)}</div>
+      <div class="detail-date">${selDate.getMonth()+1}月${selDate.getDate()}日（${days[selDate.getDay()]}）<span style="color:var(--text-dim);font-size:0.75rem">${currentLabel}</span></div>
+      <div style="font-size:0.72rem;color:var(--text-dim);margin-top:2px">${getScoreLabel(currentScore)}</div>
       <div class="detail-recommendation">${cat.notes}</div>
     </div>
   </div>`;
+
+  // Hourly（detail-headerの直下）
+  const maxScore = Math.max(...sel.hours.map(h=>h.score));
+  html += `<div class="hourly-section" style="margin-bottom:16px">
+    <div class="section-title">時間別釣り指数</div>
+    <div class="hourly-grid" id="hourly-grid">`;
+  sel.hours.forEach(h => {
+    const best = h.score === maxScore;
+    const isCurrent = isToday && h.hour === currentHour;
+    const hc = getScoreColor(h.score);
+    html += `<div class="hourly-slot ${best ? 'best' : ''} ${isCurrent ? 'current-hour' : ''}" data-hour="${h.hour}">
+      <div class="hourly-time">${String(h.hour).padStart(2,'0')}時</div>
+      <div class="hourly-score" style="color:${hc}">${h.score}</div>
+      <div class="hourly-bar"><div class="hourly-bar-fill" style="width:${h.score}%;background:${hc}"></div></div>
+    </div>`;
+  });
+  html += `</div></div>`;
 
   // Score bars
   const barItems = [
@@ -928,22 +927,6 @@ function renderMain() {
   });
   html += `</div>`;
 
-  // Hourly
-  html += `<div class="hourly-section">
-    <div class="section-title">時間別釣り指数</div>
-    <div class="hourly-grid">`;
-  const maxScore = Math.max(...sel.hours.map(h=>h.score));
-  sel.hours.forEach(h => {
-    const best = h.score === maxScore;
-    const hc = getScoreColor(h.score);
-    html += `<div class="hourly-slot ${best ? 'best' : ''}">
-      <div class="hourly-time">${String(h.hour).padStart(2,'0')}時</div>
-      <div class="hourly-score" style="color:${hc}">${h.score}</div>
-      <div class="hourly-bar"><div class="hourly-bar-fill" style="width:${h.score}%;background:${hc}"></div></div>
-    </div>`;
-  });
-  html += `</div></div>`;
-
   // Tidal info
   html += `<div class="tidal-row">
     <div class="tidal-chip"><span class="label">潮回り</span><span class="val">${sel.tidalInfo.type}</span></div>
@@ -956,7 +939,41 @@ function renderMain() {
 
   html += `</div>`; // end detail-panel
 
+  // 7-day grid（週間予報）
+  html += `<div class="section-title" style="margin-top:20px;margin-bottom:10px">週間予報</div>`;
+  html += `<div class="day-grid">`;
+  scores.forEach((s, i) => {
+    const d = new Date(today);
+    d.setDate(d.getDate() + i);
+    const color = getScoreColor(s.dayScore);
+    const label = i === 0 ? '今日' : i === 1 ? '明日' : `${days[d.getDay()]}曜`;
+    const wIcon = weatherIcon(s.weatherCode);
+    html += `
+      <div class="day-card ${i === state.selectedDay ? 'selected' : ''}"
+           style="--score-color:${color}"
+           onclick="selectDay(${i})">
+        <div class="day-label">${label}</div>
+        <div class="day-date">${d.getMonth()+1}/${d.getDate()}</div>
+        <div class="day-weather-icon">${wIcon}</div>
+        <div class="day-score" style="color:${color}">${s.dayScore}</div>
+        <div class="day-score-label">${getScoreLabel(s.dayScore)}</div>
+      </div>`;
+  });
+  html += `</div>`;
+
   document.getElementById('main-content').innerHTML = html;
+
+  // 現在時刻スロットを中央にスクロール
+  requestAnimationFrame(() => {
+    const grid = document.getElementById('hourly-grid');
+    if (!grid) return;
+    const target = grid.querySelector('.current-hour') || grid.querySelector('.best');
+    if (!target) return;
+    const gridRect = grid.getBoundingClientRect();
+    const slotRect = target.getBoundingClientRect();
+    const scrollLeft = target.offsetLeft - grid.offsetWidth / 2 + slotRect.width / 2;
+    grid.scrollLeft = scrollLeft;
+  });
 }
 
 // =============================================
