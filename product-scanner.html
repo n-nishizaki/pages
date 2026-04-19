@@ -1,0 +1,632 @@
+<!DOCTYPE html>
+
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ProductScan</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Noto+Sans+JP:wght@300;400;700&display=swap');
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+–bg: #0a0a0f;
+–surface: #13131a;
+–surface2: #1c1c28;
+–accent: #00e5ff;
+–accent2: #ff6b35;
+–text: #e8e8f0;
+–text-dim: #6b6b88;
+–border: rgba(0,229,255,0.15);
+–scan-line: rgba(0,229,255,0.6);
+}
+
+html, body {
+height: 100%;
+background: var(–bg);
+color: var(–text);
+font-family: ‘Noto Sans JP’, sans-serif;
+overflow: hidden;
+}
+
+#app {
+display: flex;
+flex-direction: column;
+height: 100vh;
+max-width: 480px;
+margin: 0 auto;
+}
+
+/* ─── HEADER ─── */
+header {
+display: flex;
+align-items: center;
+justify-content: space-between;
+padding: 12px 16px;
+background: var(–surface);
+border-bottom: 1px solid var(–border);
+flex-shrink: 0;
+}
+.logo {
+font-family: ‘Space Mono’, monospace;
+font-size: 16px;
+color: var(–accent);
+letter-spacing: 2px;
+}
+.logo span { color: var(–accent2); }
+#status-badge {
+font-family: ‘Space Mono’, monospace;
+font-size: 10px;
+padding: 4px 10px;
+border-radius: 20px;
+border: 1px solid var(–accent);
+color: var(–accent);
+letter-spacing: 1px;
+transition: all 0.3s;
+}
+#status-badge.scanning {
+background: rgba(0,229,255,0.1);
+animation: pulse-border 1.5s infinite;
+}
+#status-badge.detected {
+background: rgba(255,107,53,0.15);
+border-color: var(–accent2);
+color: var(–accent2);
+}
+
+@keyframes pulse-border {
+0%, 100% { box-shadow: 0 0 0 0 rgba(0,229,255,0.4); }
+50% { box-shadow: 0 0 0 4px rgba(0,229,255,0); }
+}
+
+/* ─── CAMERA SECTION ─── */
+#camera-section {
+position: relative;
+flex-shrink: 0;
+height: 42vh;
+background: #000;
+overflow: hidden;
+}
+
+#video {
+width: 100%;
+height: 100%;
+object-fit: cover;
+display: block;
+}
+
+/* scan overlay */
+.scan-overlay {
+position: absolute;
+inset: 0;
+pointer-events: none;
+}
+
+/* corner brackets */
+.corner {
+position: absolute;
+width: 24px;
+height: 24px;
+border-color: var(–accent);
+border-style: solid;
+opacity: 0.8;
+}
+.corner.tl { top: 16px; left: 16px; border-width: 2px 0 0 2px; }
+.corner.tr { top: 16px; right: 16px; border-width: 2px 2px 0 0; }
+.corner.bl { bottom: 16px; left: 16px; border-width: 0 0 2px 2px; }
+.corner.br { bottom: 16px; right: 16px; border-width: 0 2px 2px 0; }
+
+/* scan line */
+.scan-line {
+position: absolute;
+left: 16px;
+right: 16px;
+height: 1px;
+background: linear-gradient(90deg, transparent, var(–scan-line), transparent);
+animation: scan 2.5s ease-in-out infinite;
+box-shadow: 0 0 8px var(–scan-line);
+}
+@keyframes scan {
+0% { top: 20%; opacity: 0; }
+10% { opacity: 1; }
+90% { opacity: 1; }
+100% { top: 80%; opacity: 0; }
+}
+
+/* detected text overlay */
+#detected-overlay {
+position: absolute;
+bottom: 0;
+left: 0;
+right: 0;
+background: linear-gradient(transparent, rgba(0,0,0,0.85));
+padding: 20px 16px 12px;
+min-height: 48px;
+}
+#detected-text {
+font-family: ‘Space Mono’, monospace;
+font-size: 12px;
+color: var(–accent2);
+letter-spacing: 0.5px;
+white-space: nowrap;
+overflow: hidden;
+text-overflow: ellipsis;
+}
+#detected-text.empty { color: var(–text-dim); }
+
+/* start button overlay */
+#start-overlay {
+position: absolute;
+inset: 0;
+display: flex;
+flex-direction: column;
+align-items: center;
+justify-content: center;
+background: rgba(0,0,0,0.75);
+gap: 12px;
+}
+#start-btn {
+background: var(–accent);
+color: #000;
+border: none;
+font-family: ‘Space Mono’, monospace;
+font-size: 13px;
+font-weight: 700;
+letter-spacing: 2px;
+padding: 12px 28px;
+cursor: pointer;
+border-radius: 2px;
+transition: transform 0.15s, box-shadow 0.15s;
+}
+#start-btn:hover {
+transform: translateY(-1px);
+box-shadow: 0 4px 20px rgba(0,229,255,0.4);
+}
+#start-hint {
+font-size: 11px;
+color: var(–text-dim);
+font-family: ‘Space Mono’, monospace;
+}
+
+canvas { display: none; }
+
+/* ─── DIVIDER ─── */
+.section-divider {
+display: flex;
+align-items: center;
+gap: 10px;
+padding: 10px 16px;
+flex-shrink: 0;
+background: var(–surface);
+border-top: 1px solid var(–border);
+border-bottom: 1px solid var(–border);
+}
+.divider-label {
+font-family: ‘Space Mono’, monospace;
+font-size: 10px;
+letter-spacing: 2px;
+color: var(–text-dim);
+white-space: nowrap;
+}
+.divider-line { flex: 1; height: 1px; background: var(–border); }
+#result-count {
+font-family: ‘Space Mono’, monospace;
+font-size: 10px;
+color: var(–accent);
+}
+
+/* ─── RESULTS SECTION ─── */
+#results-section {
+flex: 1;
+overflow-y: auto;
+padding: 12px;
+background: var(–bg);
+}
+#results-section::-webkit-scrollbar { width: 4px; }
+#results-section::-webkit-scrollbar-track { background: var(–surface); }
+#results-section::-webkit-scrollbar-thumb { background: var(–border); border-radius: 2px; }
+
+#results-grid {
+display: grid;
+grid-template-columns: 1fr 1fr;
+gap: 10px;
+}
+
+/* result card */
+.result-card {
+background: var(–surface);
+border: 1px solid var(–border);
+border-radius: 4px;
+overflow: hidden;
+animation: card-in 0.35s ease both;
+position: relative;
+}
+@keyframes card-in {
+from { opacity: 0; transform: translateY(12px); }
+to { opacity: 1; transform: translateY(0); }
+}
+
+.card-seq {
+position: absolute;
+top: 6px;
+left: 6px;
+font-family: ‘Space Mono’, monospace;
+font-size: 9px;
+color: var(–accent);
+background: rgba(0,229,255,0.12);
+padding: 2px 5px;
+border-radius: 2px;
+letter-spacing: 1px;
+z-index: 1;
+}
+
+.card-loading {
+display: flex;
+flex-direction: column;
+align-items: center;
+justify-content: center;
+height: 120px;
+gap: 8px;
+}
+.card-spinner {
+width: 20px;
+height: 20px;
+border: 2px solid var(–border);
+border-top-color: var(–accent);
+border-radius: 50%;
+animation: spin 0.8s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+.card-loading-text {
+font-size: 9px;
+font-family: ‘Space Mono’, monospace;
+color: var(–text-dim);
+letter-spacing: 1px;
+}
+
+.card-body { padding: 8px; }
+.card-query {
+font-family: ‘Space Mono’, monospace;
+font-size: 9px;
+color: var(–accent2);
+letter-spacing: 0.5px;
+margin-bottom: 6px;
+white-space: nowrap;
+overflow: hidden;
+text-overflow: ellipsis;
+padding-top: 4px;
+}
+.card-title {
+font-size: 11px;
+font-weight: 700;
+line-height: 1.4;
+margin-bottom: 5px;
+color: var(–text);
+}
+.card-desc {
+font-size: 10px;
+color: var(–text-dim);
+line-height: 1.5;
+display: -webkit-box;
+-webkit-line-clamp: 4;
+-webkit-box-orient: vertical;
+overflow: hidden;
+}
+.card-price {
+margin-top: 6px;
+font-family: ‘Space Mono’, monospace;
+font-size: 11px;
+color: var(–accent);
+}
+.card-error {
+padding: 12px 8px;
+font-size: 10px;
+color: var(–text-dim);
+font-family: ‘Space Mono’, monospace;
+text-align: center;
+}
+
+/* empty state */
+#empty-state {
+grid-column: 1 / -1;
+text-align: center;
+padding: 48px 20px;
+color: var(–text-dim);
+}
+#empty-state .empty-icon {
+font-size: 36px;
+margin-bottom: 12px;
+opacity: 0.4;
+}
+#empty-state p {
+font-size: 12px;
+font-family: ‘Space Mono’, monospace;
+letter-spacing: 1px;
+line-height: 1.8;
+}
+</style>
+
+</head>
+<body>
+<div id="app">
+
+  <!-- HEADER -->
+
+  <header>
+    <div class="logo">PRODUCT<span>SCAN</span></div>
+    <div id="status-badge">STANDBY</div>
+  </header>
+
+  <!-- CAMERA -->
+
+  <div id="camera-section">
+    <video id="video" autoplay playsinline muted></video>
+    <canvas id="canvas"></canvas>
+
+```
+<div class="scan-overlay">
+  <div class="corner tl"></div>
+  <div class="corner tr"></div>
+  <div class="corner bl"></div>
+  <div class="corner br"></div>
+  <div class="scan-line"></div>
+</div>
+
+<div id="detected-overlay">
+  <div id="detected-text" class="empty">— テキスト検出待機中 —</div>
+</div>
+
+<div id="start-overlay">
+  <button id="start-btn">▶ SCAN START</button>
+  <div id="start-hint">カメラへのアクセスを許可してください</div>
+</div>
+```
+
+  </div>
+
+  <!-- DIVIDER -->
+
+  <div class="section-divider">
+    <div class="divider-label">RESULTS</div>
+    <div class="divider-line"></div>
+    <div id="result-count">0 items</div>
+  </div>
+
+  <!-- RESULTS -->
+
+  <div id="results-section">
+    <div id="results-grid">
+      <div id="empty-state">
+        <div class="empty-icon">📦</div>
+        <p>商品にカメラを向けると<br>自動で検索します</p>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- Tesseract.js -->
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/tesseract.js/5.0.4/tesseract.min.js"></script>
+
+<script>
+// ─── STATE ───
+const state = {
+  scanning: false,
+  seqCounter: 0,
+  recentDetected: new Set(),   // dedup window
+  processingOCR: false,
+};
+
+// ─── DOM refs ───
+const video       = document.getElementById('video');
+const canvas      = document.getElementById('canvas');
+const ctx         = canvas.getContext('2d');
+const startOverlay= document.getElementById('start-overlay');
+const startBtn    = document.getElementById('start-btn');
+const statusBadge = document.getElementById('status-badge');
+const detectedText= document.getElementById('detected-text');
+const resultsGrid = document.getElementById('results-grid');
+const resultCount = document.getElementById('result-count');
+
+// ─── CAMERA START ───
+startBtn.addEventListener('click', async () => {
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 } }
+    });
+    video.srcObject = stream;
+    await video.play();
+    startOverlay.style.display = 'none';
+    state.scanning = true;
+    setStatus('SCANNING', 'scanning');
+    scheduleCapture();
+  } catch (e) {
+    document.getElementById('start-hint').textContent = 'カメラアクセスが拒否されました';
+    console.error(e);
+  }
+});
+
+// ─── OCR LOOP ───
+function scheduleCapture() {
+  if (!state.scanning) return;
+  setTimeout(async () => {
+    if (!state.processingOCR) {
+      state.processingOCR = true;
+      try { await captureAndOCR(); } catch(e) { console.warn('OCR error', e); }
+      state.processingOCR = false;
+    }
+    scheduleCapture();
+  }, 2500);  // every 2.5s
+}
+
+async function captureAndOCR() {
+  canvas.width  = video.videoWidth  || 640;
+  canvas.height = video.videoHeight || 480;
+  ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+  const imageData = canvas.toDataURL('image/jpeg', 0.85);
+
+  // Tesseract OCR (日本語 + 英語)
+  const result = await Tesseract.recognize(imageData, 'jpn+eng', {
+    logger: () => {}
+  });
+
+  const rawText = result.data.text || '';
+  const candidates = extractProductCandidates(rawText);
+
+  if (candidates.length > 0) {
+    const query = candidates[0];
+    showDetected(query);
+
+    // dedup: same text within 30s skip
+    if (!state.recentDetected.has(query)) {
+      state.recentDetected.add(query);
+      setTimeout(() => state.recentDetected.delete(query), 30000);
+      triggerSearch(query);
+    }
+  }
+}
+
+// ─── TEXT → PRODUCT CANDIDATE FILTER ───
+function extractProductCandidates(text) {
+  const lines = text.split(/\n/).map(l => l.trim()).filter(Boolean);
+  const candidates = [];
+
+  for (const line of lines) {
+    // 除外: 短すぎ or 長すぎ
+    if (line.length < 3 || line.length > 50) continue;
+    // 除外: 数字のみ・記号のみ
+    if (/^[\d\s\.\-_,]+$/.test(line)) continue;
+    // 除外: URL っぽい
+    if (/https?:|www\.|\.com/.test(line)) continue;
+    // 英数カタカナが混じる → 商品名らしい
+    const hasAlphaNum = /[A-Za-z0-9]/.test(line);
+    const hasJP = /[\u3040-\u30FF\u4E00-\u9FAF]/.test(line);
+    const score = (hasAlphaNum ? 1 : 0) + (hasJP ? 1 : 0)
+                + (line.length > 6 ? 1 : 0);
+    if (score >= 1) candidates.push({ line, score });
+  }
+
+  candidates.sort((a, b) => b.score - a.score);
+  return candidates.slice(0, 1).map(c => c.line);
+}
+
+// ─── SEARCH (Anthropic API) ───
+async function triggerSearch(query) {
+  const seq = ++state.seqCounter;
+  setStatus('DETECTED', 'detected');
+  setTimeout(() => setStatus('SCANNING', 'scanning'), 2000);
+
+  // remove empty state
+  const emptyState = document.getElementById('empty-state');
+  if (emptyState) emptyState.remove();
+
+  // create placeholder card (prepend = newest first)
+  const card = createLoadingCard(seq, query);
+  resultsGrid.insertBefore(card, resultsGrid.firstChild);
+  updateCount();
+
+  try {
+    const response = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 1000,
+        system: `あなたは商品検索アシスタントです。ユーザーが提示した文字列から商品名を推定し、その商品情報をJSON形式のみで返してください。
+フォーマット（JSONのみ、マークダウン不要）:
+{
+  "productName": "正式な商品名",
+  "category": "カテゴリ",
+  "description": "商品の説明（50字程度）",
+  "priceRange": "価格帯（例: ¥1,000〜¥3,000）",
+  "manufacturer": "メーカー名"
+}
+商品が特定できない場合は productName を "不明" にしてください。`,
+        messages: [{ role: 'user', content: `次の文字列から商品を特定してください: "${query}"` }]
+      })
+    });
+
+    const data = await response.json();
+    const text = (data.content || []).filter(b => b.type === 'text').map(b => b.text).join('');
+    let info = null;
+    try {
+      const cleaned = text.replace(/```json|```/g, '').trim();
+      info = JSON.parse(cleaned);
+    } catch { info = null; }
+
+    renderCard(card, query, info);
+  } catch (e) {
+    renderCardError(card, query);
+    console.error('Search error', e);
+  }
+
+  updateCount();
+}
+
+// ─── CARD BUILDERS ───
+function createLoadingCard(seq, query) {
+  const card = document.createElement('div');
+  card.className = 'result-card';
+  card.dataset.seq = seq;
+  card.innerHTML = `
+    <div class="card-seq">#${String(seq).padStart(2,'0')}</div>
+    <div class="card-loading">
+      <div class="card-spinner"></div>
+      <div class="card-loading-text">SEARCHING...</div>
+    </div>`;
+  return card;
+}
+
+function renderCard(card, query, info) {
+  if (!info || info.productName === '不明') {
+    renderCardError(card, query);
+    return;
+  }
+  const seq = card.dataset.seq;
+  card.innerHTML = `
+    <div class="card-seq">#${String(seq).padStart(2,'0')}</div>
+    <div class="card-body">
+      <div class="card-query">${escapeHtml(query)}</div>
+      <div class="card-title">${escapeHtml(info.productName)}</div>
+      <div class="card-desc">
+        ${info.manufacturer ? `<strong>${escapeHtml(info.manufacturer)}</strong> · ` : ''}
+        ${escapeHtml(info.category || '')}
+        ${info.description ? '<br>' + escapeHtml(info.description) : ''}
+      </div>
+      ${info.priceRange ? `<div class="card-price">${escapeHtml(info.priceRange)}</div>` : ''}
+    </div>`;
+}
+
+function renderCardError(card, query) {
+  const seq = card.dataset.seq;
+  card.innerHTML = `
+    <div class="card-seq">#${String(seq).padStart(2,'0')}</div>
+    <div class="card-error">「${escapeHtml(query)}」<br>検索できませんでした</div>`;
+}
+
+// ─── UI HELPERS ───
+function setStatus(label, cls) {
+  statusBadge.textContent = label;
+  statusBadge.className = cls || '';
+}
+
+function showDetected(text) {
+  detectedText.textContent = `▶ ${text}`;
+  detectedText.classList.remove('empty');
+}
+
+function updateCount() {
+  const n = resultsGrid.querySelectorAll('.result-card').length;
+  resultCount.textContent = `${n} item${n !== 1 ? 's' : ''}`;
+}
+
+function escapeHtml(str) {
+  return String(str || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+</script>
+
+</body>
+</html>
