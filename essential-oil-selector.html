@@ -119,6 +119,27 @@
     color: var(--text) !important;
   }
 
+  .uses-row {
+    font-size: 0.76rem;
+    line-height: 1.6;
+    color: var(--text) !important;
+    margin-top: 8px;
+    padding-top: 8px;
+    border-top: 1px dashed var(--line);
+  }
+
+  .uses-label {
+    display: inline-block;
+    font-size: 0.62rem;
+    font-weight: 600;
+    color: var(--muted) !important;
+    background: var(--bg);
+    border-radius: 4px;
+    padding: 1px 7px;
+    margin-right: 6px;
+    vertical-align: middle;
+  }
+
   .controls {
     display: flex;
     gap: 8px;
@@ -183,6 +204,10 @@
     align-items: center;
   }
 
+  .oil-card.expanded {
+    align-items: flex-start;
+  }
+
   .oil-photo {
     width: 52px;
     height: 52px;
@@ -233,17 +258,48 @@
     flex-shrink: 0;
   }
 
-  .bar-track {
-    height: 4px;
-    background: var(--line);
-    border-radius: 3px;
+  .family-row {
+    display: flex;
+    align-items: center;
+    gap: 5px;
     margin-top: 6px;
-    overflow: hidden;
   }
 
-  .bar-fill {
-    height: 100%;
-    border-radius: 3px;
+  .family-dot {
+    width: 7px; height: 7px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+
+  .family-label {
+    font-size: 0.66rem;
+    color: var(--muted) !important;
+  }
+
+  .family-chip {
+    display: inline-block;
+    font-size: 0.62rem;
+    padding: 2px 9px;
+    border-radius: 20px;
+    font-weight: 600;
+    color: white;
+    white-space: nowrap;
+  }
+
+  .reason-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 5px;
+    margin-top: 8px;
+  }
+
+  .reason-chip {
+    font-size: 0.66rem;
+    padding: 3px 9px;
+    border-radius: 20px;
+    border: 1px solid;
+    background: var(--bg);
+    white-space: nowrap;
   }
 
   .oil-detail {
@@ -253,7 +309,7 @@
   }
 
   .oil-card.expanded .oil-detail {
-    max-height: 200px;
+    max-height: 500px;
     margin-top: 8px;
   }
 
@@ -262,15 +318,18 @@
     line-height: 1.6;
     color: var(--text) !important;
     padding-top: 8px;
+    padding-bottom: 2px;
     border-top: 1px dashed var(--line);
   }
 
   .use-axis-btn {
-    display: inline-flex;
+    display: flex;
     align-items: center;
+    justify-content: center;
     gap: 5px;
+    width: 100%;
     margin-top: 10px;
-    padding: 7px 14px;
+    padding: 9px 14px;
     border-radius: 20px;
     border: 1.3px solid var(--text);
     background: var(--surface);
@@ -279,11 +338,12 @@
     font-size: 0.72rem;
     font-weight: 600;
     cursor: pointer;
+    box-sizing: border-box;
   }
 
   .use-axis-btn:active {
     background: var(--text);
-    color: var(--surface);
+    color: var(--surface) !important;
   }
 
   .oil-detail-tag {
@@ -355,59 +415,68 @@ const NOTE_LABEL = { top: 'トップノート', mid: 'ミドルノート', base:
 const NOTE_SUB = { top: '揮発が速く、香りの第一印象を作る', mid: '香りの主体。30分〜数時間持続', base: '最後まで残り、香り全体を支える' };
 const NOTE_COLOR = { top: '#6B9E6B', mid: '#C69A3E', base: '#7B5FA0' };
 
+// 香りの系統（精油業界の標準7分類＋和精油を加えたもの）
+const FAMILY_LABEL = {
+  citrus: 'シトラス系',
+  floral: 'フローラル系',
+  herb: 'ハーブ系',
+  woody: 'ウッディ系',
+  resin: '樹脂系',
+  spice: 'スパイス系',
+  oriental: 'エキゾチック系',
+};
+const FAMILY_COLOR = {
+  citrus: '#E8A23D',
+  floral: '#D67C9A',
+  herb: '#6FA05A',
+  woody: '#8A6A4A',
+  resin: '#9C7A45',
+  spice: '#C0562F',
+  oriental: '#A65DA8',
+};
+// 隣接関係（相関図の並び順。隣同士は「相性抜群」判定に使う）
+const FAMILY_ORDER = ['citrus', 'floral', 'oriental', 'resin', 'woody', 'herb', 'spice'];
+
 const oils = {
-  'ラベンダー': { note: NOTE.MID, family: 'floral-herb', desc: '地中海沿岸原産のシソ科ハーブ。フローラルと樹木系の中間のような澄んだ甘さと清涼感を持ち、精油全体で最も汎用性が高い「橋渡し役」。ほぼ全ての系統と自然に調和する。' },
-  'ジャスミン': { note: NOTE.MID, family: 'floral', desc: 'モクセイ科の白い花から。濃密で官能的なフローラル。三大フローラルの一つ。少量で強い存在感を放つため、主役として使うか微量のアクセントに留めるか判断が必要。' },
-  'ユーカリ': { note: NOTE.TOP, family: 'camphor', desc: 'フトモモ科の葉から。シャープでメディシナルな清涼感。抗菌・抗ウイルス作用で知られるが、香りの主張が強く濃厚フローラルとは衝突しやすい。' },
-  'バニラ': { note: NOTE.BASE, family: 'gourmand', desc: 'ラン科植物の実から。甘く温かみのあるグルマン系の香り。少量で全体を丸く優しい印象にまとめる力がある。' },
-  'ペパーミント': { note: NOTE.TOP, family: 'mint', desc: 'シソ科のハーブ。メントールの強い清涼感で揮発も速い。刺激が強いため低濃度が基本、繊細なフローラルとは相性が悪い。' },
-  'サンダルウッド': { note: NOTE.BASE, family: 'woody-soft', desc: 'ビャクダン科の心材（白檀）から。甘く滑らかな木の香りで持続性が非常に高く、ブレンド全体を「まとめる」ベースの代表格。' },
-  'フランキンセンス': { note: NOTE.BASE, family: 'resin', desc: 'カンラン科の樹脂（乳香）から。ウッディで少しスパイシー、瞑想的な深み。皮膚への親和性が高くスキンケアでも人気。' },
-  'スイートオレンジ': { note: NOTE.TOP, family: 'citrus', desc: 'ミカン科の果皮から。甘くジューシーで親しみやすい万人受けの香り。揮発が非常に速くトップノートの持続時間は短め。' },
-  'イランイラン': { note: NOTE.MID, family: 'floral-exotic', desc: 'バンレイシ科の黄色い花から。濃厚でエキゾチックな甘さ。官能的だが主張が非常に強く、ミント系や柑橘系と組み合わせると不協和を起こしやすい。' },
-  'レモン': { note: NOTE.TOP, family: 'citrus', desc: 'ミカン科の果皮から。シャープで爽快な酸味の柑橘代表格。清潔感の演出に万能だが光毒性があるため使用後は直射日光に注意。' },
-  'ローズ': { note: NOTE.MID, family: 'floral', desc: 'バラ科の花から。三大フローラルの頂点に立つ深く優雅な香り。1滴を採るのに大量の花弁を要するため精油の中でも最高級。' },
-  'ベルガモット': { note: NOTE.TOP, family: 'citrus', desc: 'ミカン科の果皮から。柑橘の中で珍しくフローラルな優雅さも併せ持つ。フロクマリンフリー（FF）品種は光毒性の心配がなく肌用途に安心。' },
-  'ティーツリー': { note: NOTE.MID, family: 'camphor', desc: 'フトモモ科の葉から。シャープでウッディなハーバル系。強い抗菌・抗真菌作用で頭皮ケアの定番。原液を直接肌に使える数少ない精油の一つ。' },
-  'レモングラス': { note: NOTE.TOP, family: 'citrus-herb', desc: 'イネ科のハーブから。強いレモン様の香りに青さ・グリーン感が加わる。虫除けとしても知られ防虫・消臭用途で人気。' },
-  'パチュリ': { note: NOTE.BASE, family: 'earthy', desc: 'シソ科の葉から。土っぽく湿った森を思わせるアーシーな香り。好き嫌いが分かれる個性派だが、フローラルやウッディ系を深く落ち着かせる力を持つ。' },
-  'ローズマリー': { note: NOTE.MID, family: 'herb', desc: 'シソ科のハーブから。クリアでグリーン、樟脳のような清涼感。集中力を高める効果で知られ頭皮の血行促進にも使われる定番のハーブ精油。' },
-  'ゼラニウム': { note: NOTE.MID, family: 'floral-herb', desc: 'フウロソウ科の葉から。ローズに似た甘いフローラル感とグリーンな爽やかさ。皮脂バランスの調整に定評があり頭皮ケアとの相性が特に良い。' },
-  'シトロネラ': { note: NOTE.TOP, family: 'citrus-herb', desc: 'イネ科のハーブから。レモングラスに似たシャープな柑橘・青草系の香り。防虫効果が高くアウトドア用途で人気。実用的な香りで洗練度は控えめ。' },
-  'カモミール': { note: NOTE.MID, family: 'floral-herb', desc: 'キク科の花から。りんごを思わせる甘くやさしいハーブ調フローラル。鎮静作用が高く「眠りのハーブ」として知られる低刺激な香り。' },
-  'ジュニパーベリー': { note: NOTE.MID, family: 'woody-fresh', desc: 'ヒノキ科の球果（実）から。ジンの香りづけで知られるクリアでウッディ、少しスパイシーな香り。樹木系ブレンドに骨格を与える。' },
-  'バジル': { note: NOTE.TOP, family: 'herb-spice', desc: 'シソ科のハーブから。スパイシーでグリーン、わずかに甘さのある独特の香り。香りの主張が強く繊細なフローラルとは衝突しやすい。' },
-  'シダーウッド': { note: NOTE.BASE, family: 'woody', desc: 'マツ科の心材から。乾いた温かみのある木の香りで鉛筆の芯のような親しみやすさ。サンダルウッドより手頃でウッディ系ブレンドの土台に重宝。' },
-  'クラリセージ': { note: NOTE.MID, family: 'herb', desc: 'シソ科のハーブから。マスキーで少しナッツのような複雑なハーバル系の香り。リラックス効果が高く単体は独特だがブレンドで真価を発揮。' },
-  'ベチバー': { note: NOTE.BASE, family: 'earthy', desc: 'イネ科の根から。土と煙を思わせる深いアーシーな香り。精油の中でも最も持続性が高いベースノートの一つ。少量で重厚感をまとめる。' },
-  'グレープフルーツ': { note: NOTE.TOP, family: 'citrus', desc: 'ミカン科の果皮から。ほろ苦さのある爽快な柑橘の香り。気分をリフレッシュさせる効果で人気が高く特に「軽さ」を感じさせる。' },
-  'ひのき': { note: NOTE.BASE, family: 'woody', desc: 'ヒノキ科の木部から。日本人に馴染み深い森林浴のような香り。和のオーガニック感を出したいブレンドに最適。' },
-  'タンジェリン': { note: NOTE.TOP, family: 'citrus', desc: 'ミカン科の果皮から。スイートオレンジよりさらに甘く柔らかい、みかんのような香り。特に「温かみ」を感じさせる柑橘。' },
-  'ミルラ': { note: NOTE.BASE, family: 'resin', desc: 'カンラン科の樹脂（没薬）から。スモーキーで薬っぽい深みのある樹脂香。フランキンセンスと近縁で皮膚の保護作用でも知られる。' },
-  'オレガノ': { note: NOTE.MID, family: 'herb-spice', desc: 'シソ科のハーブから。強い薬草様のスパイシーさを持つ香り。抗菌力は非常に高いが香り・刺激ともに強烈で肌用途には基本的に不向き。' },
-  'ネロリ': { note: NOTE.MID, family: 'floral', desc: 'ミカン科の橙（だいだい）の花から。柑橘の爽やかさとフローラルの優雅さを兼ね備えた上品で複雑な香り。高級感を出したい時の切り札。' },
-  'ヘリクリサム': { note: NOTE.MID, family: 'herb-resin', desc: 'キク科の黄色い花（イモーテル）から。蜂蜜のような甘さと少しスパイシーな複雑さを持つ独特の香り。希少で高価、肌の修復ケアで評価が高い。' },
-  'コパイバ': { note: NOTE.BASE, family: 'resin', desc: 'マメ科の樹木の樹脂から。ウッディでほのかに甘い非常に穏やかな香り。主張は控えめだが他の精油の効果を引き立てる黒子役。' },
-  'レモンユーカリ': { note: NOTE.TOP, family: 'camphor-citrus', desc: 'フトモモ科の葉から。通常のユーカリより柔らかくレモンのような爽やかさが際立つ。メディシナル感が少なく虫除けや消臭用途で人気。' },
-  'ターメリック': { note: NOTE.MID, family: 'spice', desc: 'ショウガ科の根茎（ウコン）から。スパイシーで土っぽく、ジンジャーに似た温かみのある香り。着色力が強く製品への添加は色移りに注意。' },
-  'スペアミント': { note: NOTE.TOP, family: 'mint', desc: 'シソ科のハーブから。ペパーミントより穏やかで少し甘さのある清涼感。メントール感は控えめだが香りの主張自体は依然強め。' },
+  'ラベンダー': { note: NOTE.MID, family: 'herb', desc: '地中海沿岸原産のシソ科ハーブ。フローラルと樹木系の中間のような澄んだ甘さと清涼感を持ち、精油全体で最も汎用性が高い「橋渡し役」。ほぼ全ての系統と自然に調和する。', uses: '安眠・リラックス／ストレス緩和／軽い切り傷や虫刺され後のケア' },
+  'ジャスミン': { note: NOTE.MID, family: 'floral', desc: 'モクセイ科の白い花から。濃密で官能的なフローラル。三大フローラルの一つ。少量で強い存在感を放つため、主役として使うか微量のアクセントに留めるか判断が必要。', uses: '香水・特別な香りづくり／気分の落ち込み時のケア／自信を高めたい時' },
+  'ユーカリ': { note: NOTE.TOP, family: 'herb', desc: 'フトモモ科の葉から。シャープでメディシナルな清涼感。抗菌・抗ウイルス作用で知られる、香りの主張がやや強めのハーブ系。', uses: '鼻づまり・花粉症対策／集中力アップ／室内の空気清浄・消臭' },
+  'バニラ': { note: NOTE.BASE, family: 'oriental', desc: 'ラン科植物の実から。甘く温かみのあるグルマン系の香り。少量で全体を丸く優しい印象にまとめる力がある。ウッディ系との相性は特に良い。', uses: '安眠・リラックス／不安や緊張の緩和／甘い香りの香水づくり' },
+  'ペパーミント': { note: NOTE.TOP, family: 'herb', desc: 'シソ科のハーブ。メントールの強い清涼感で揮発も速い。刺激・香りともに強いため、ブレンドでは少量から試すのがおすすめ。', uses: '眠気覚まし・集中力アップ／夏の暑さ対策／鼻づまりの緩和' },
+  'サンダルウッド': { note: NOTE.BASE, family: 'woody', desc: 'ビャクダン科の心材（白檀）から。甘く滑らかな木の香りで持続性が非常に高く、ブレンド全体を「まとめる」ベースの代表格。', uses: '瞑想・深いリラックス／就寝前の落ち着きたい時間／スキンケア全般' },
+  'フランキンセンス': { note: NOTE.BASE, family: 'resin', desc: 'カンラン科の樹脂（乳香）から。ウッディで少しスパイシー、瞑想的な深み。皮膚への親和性が高くスキンケアでも人気。', uses: '瞑想・ヨガ／エイジングケア／深い呼吸を促したい時' },
+  'スイートオレンジ': { note: NOTE.TOP, family: 'citrus', desc: 'ミカン科の果皮から。甘くジューシーで親しみやすい万人受けの香り。揮発が非常に速くトップノートの持続時間は短め。', uses: '気分転換・リフレッシュ／子供部屋や家族が集まる空間／食欲不振の緩和' },
+  'イランイラン': { note: NOTE.MID, family: 'oriental', desc: 'バンレイシ科の黄色い花から。濃厚でエキゾチックな甘さ。官能的で存在感が強いため、少量から試すのがおすすめ。', uses: '不安・緊張の緩和／頭皮ケア（皮脂バランス）／特別な夜のリラックスタイム' },
+  'レモン': { note: NOTE.TOP, family: 'citrus', desc: 'ミカン科の果皮から。シャープで爽快な酸味の柑橘代表格。清潔感の演出に万能だが光毒性があるため使用後は直射日光に注意。', uses: '集中力アップ／掃除・消臭スプレー／風邪予防の香り' },
+  'ローズ': { note: NOTE.MID, family: 'floral', desc: 'バラ科の花から。三大フローラルの頂点に立つ深く優雅な香り。1滴を採るのに大量の花弁を要するため精油の中でも最高級。', uses: 'スキンケア・エイジングケア／特別な日の香水／気持ちを整えたい時' },
+  'ベルガモット': { note: NOTE.TOP, family: 'citrus', desc: 'ミカン科の果皮から。柑橘の中で珍しくフローラルな優雅さも併せ持つ。フロクマリンフリー（FF）品種は光毒性の心配がなく肌用途に安心。', uses: '気分の落ち込み・不安のケア／アールグレイ調の香りづけ／リラックスしたい時' },
+  'ティーツリー': { note: NOTE.MID, family: 'herb', desc: 'フトモモ科の葉から。シャープでウッディなハーバル系。強い抗菌・抗真菌作用で頭皮ケアの定番。原液を直接肌に使える数少ない精油の一つ。', uses: '頭皮ケア・フケ予防／ニキビケア／掃除・抗菌スプレー' },
+  'レモングラス': { note: NOTE.TOP, family: 'citrus', desc: 'イネ科のハーブから。強いレモン様の香りに青さ・グリーン感が加わる。虫除けとしても知られ防虫・消臭用途で人気。', uses: '虫除け／リフレッシュ・気分転換／筋肉痛のケア' },
+  'パチュリ': { note: NOTE.BASE, family: 'woody', desc: 'シソ科の葉から。土っぽく湿った森を思わせるアーシーな香り。好き嫌いが分かれる個性派だが、フローラルやウッディ系を深く落ち着かせる力を持つ。', uses: '香水の土台・保留剤／瞑想／虫除け（防虫剤の香りづけ）' },
+  'ローズマリー': { note: NOTE.MID, family: 'herb', desc: 'シソ科のハーブから。クリアでグリーン、樟脳のような清涼感。集中力を高める効果で知られ頭皮の血行促進にも使われる定番のハーブ精油。', uses: '勉強・仕事の集中力アップ／頭皮の血行促進／記憶力サポート' },
+  'ゼラニウム': { note: NOTE.MID, family: 'floral', desc: 'フウロソウ科の葉から。ローズに似た甘いフローラル感とグリーンな爽やかさ。皮脂バランスの調整に定評があり頭皮ケアとの相性が特に良い。', uses: '頭皮・肌の皮脂バランス調整／PMSや更年期のケア／虫除け' },
+  'シトロネラ': { note: NOTE.TOP, family: 'citrus', desc: 'イネ科のハーブから。レモングラスに似たシャープな柑橘・青草系の香り。防虫効果が高くアウトドア用途で人気。', uses: '虫除け（特に蚊）／アウトドアでの使用／消臭スプレー' },
+  'カモミール': { note: NOTE.MID, family: 'floral', desc: 'キク科の花から。りんごを思わせる甘くやさしいハーブ調フローラル。鎮静作用が高く「眠りのハーブ」として知られる低刺激な香り。', uses: '安眠・寝つきの改善／子供や敏感肌の人のケア／PMS時の不快感の緩和' },
+  'ジュニパーベリー': { note: NOTE.MID, family: 'woody', desc: 'ヒノキ科の球果（実）から。ジンの香りづけで知られるクリアでウッディ、少しスパイシーな香り。樹木系ブレンドに骨格を与える。', uses: '集中力アップ・浄化／むくみ・デトックスケア／二日酔い後のリフレッシュ' },
+  'バジル': { note: NOTE.TOP, family: 'herb', desc: 'シソ科のハーブから。スパイシーでグリーン、わずかに甘さのある独特の香り。香りの主張がやや強め。', uses: '集中力・記憶力アップ／気分転換／消化不良のケア' },
+  'シダーウッド': { note: NOTE.BASE, family: 'woody', desc: 'マツ科の心材から。乾いた温かみのある木の香りで鉛筆の芯のような親しみやすさ。サンダルウッドより手頃でウッディ系ブレンドの土台に重宝。', uses: '防虫・クローゼットの香りづけ／落ち着きたい時の空間づくり／掃除' },
+  'クラリセージ': { note: NOTE.MID, family: 'herb', desc: 'シソ科のハーブから。マスキーで少しナッツのような複雑なハーバル系の香り。リラックス効果が高く単体は独特だがブレンドで真価を発揮。', uses: 'PMSや生理前の不快感の緩和／深いリラックス／緊張状態を解きたい時' },
+  'ベチバー': { note: NOTE.BASE, family: 'woody', desc: 'イネ科の根から。土と煙を思わせる深いアーシーな香り。精油の中でも最も持続性が高いベースノートの一つ。少量で重厚感をまとめる。', uses: '深い安眠・鎮静／香水の保留剤／グラウンディング（心を落ち着ける）' },
+  'グレープフルーツ': { note: NOTE.TOP, family: 'citrus', desc: 'ミカン科の果皮から。ほろ苦さのある爽快な柑橘の香り。気分をリフレッシュさせる効果で人気が高く特に「軽さ」を感じさせる。', uses: '気分転換・リフレッシュ／食欲コントロールしたい時／むくみケア' },
+  'ひのき': { note: NOTE.BASE, family: 'woody', desc: 'ヒノキ科の木部から。日本人に馴染み深い森林浴のような香り。癖が少なく様々な系統と幅広く調和する。', uses: '森林浴気分でのリラックス／和の空間づくり／入浴時のリフレッシュ' },
+  'タンジェリン': { note: NOTE.TOP, family: 'citrus', desc: 'ミカン科の果皮から。スイートオレンジよりさらに甘く柔らかい、みかんのような香り。特に「温かみ」を感じさせる柑橘。', uses: '子供にも使いやすい優しい香り／リラックスタイム／気分を明るくしたい時' },
+  'ミルラ': { note: NOTE.BASE, family: 'resin', desc: 'カンラン科の樹脂（没薬）から。スモーキーで薬っぽい深みのある樹脂香。フランキンセンスと近縁で皮膚の保護作用でも知られる。', uses: '肌荒れ・乾燥ケア／瞑想／口内・口臭ケア（マウスウォッシュ等）' },
+  'オレガノ': { note: NOTE.MID, family: 'spice', desc: 'シソ科のハーブから。強い薬草様のスパイシーさを持つ香り。抗菌力は非常に高いが香り・刺激ともに強烈で肌用途には基本的に不向き。', uses: '空間の抗菌・浄化（芳香浴向け）／料理の香りづけの延長としての利用' },
+  'ネロリ': { note: NOTE.MID, family: 'floral', desc: 'ミカン科の橙（だいだい）の花から。柑橘の爽やかさとフローラルの優雅さを兼ね備えた上品で複雑な香り。高級感を出したい時の切り札。', uses: '不安・緊張の緩和／エイジングケア／特別な香水づくり' },
+  'ヘリクリサム': { note: NOTE.MID, family: 'herb', desc: 'キク科の黄色い花（イモーテル）から。蜂蜜のような甘さと少しスパイシーな複雑さを持つ独特の香り。希少で高価、肌の修復ケアで評価が高い。', uses: '肌の修復・エイジングケア／打撲や炎症後のケア／希少な香りを楽しみたい時' },
+  'コパイバ': { note: NOTE.BASE, family: 'resin', desc: 'マメ科の樹木の樹脂から。ウッディでほのかに甘い非常に穏やかな香り。主張は控えめだが他の精油の効果を引き立てる黒子役。', uses: '他の精油の香りを引き立てる土台役／リラックス／敏感な人にも使いやすい穏やかな香り' },
+  'レモンユーカリ': { note: NOTE.TOP, family: 'citrus', desc: 'フトモモ科の葉から。通常のユーカリより柔らかくレモンのような爽やかさが際立つ。メディシナル感が少なく虫除けや消臭用途で人気。', uses: '虫除け（特に蚊）／消臭スプレー／リフレッシュしたい時' },
+  'ターメリック': { note: NOTE.MID, family: 'spice', desc: 'ショウガ科の根茎（ウコン）から。スパイシーで土っぽく、ジンジャーに似た温かみのある香り。着色力が強く製品への添加は色移りに注意。', uses: '体を温めたい時の香り／スパイス系ブレンドのアクセント／気分を落ち着けたい時' },
+  'スペアミント': { note: NOTE.TOP, family: 'herb', desc: 'シソ科のハーブから。ペパーミントより穏やかで少し甘さのある清涼感。メントール感は控えめだが香りの主張自体は依然強め。', uses: '穏やかな清涼感が欲しい時／消化不良のケア／子供にも使いやすいミント系' },
 };
 
-const CAUTION_PAIRS = new Set([
-  ['ローズマリー','イランイラン'], ['ローズマリー','パチュリ'], ['ローズマリー','ジャスミン'],
-  ['ペパーミント','イランイラン'], ['ペパーミント','ローズ'], ['ペパーミント','ジャスミン'],
-  ['スペアミント','イランイラン'], ['スペアミント','ジャスミン'],
-  ['ユーカリ','イランイラン'], ['ユーカリ','ジャスミン'], ['ユーカリ','ローズ'],
-  ['レモンユーカリ','イランイラン'], ['レモンユーカリ','ジャスミン'],
-  ['オレガノ','ローズ'], ['オレガノ','ジャスミン'], ['オレガノ','ネロリ'], ['オレガノ','ローズマリー'],
-  ['バジル','ローズ'], ['バジル','ジャスミン'],
-  ['ターメリック','ローズ'], ['ターメリック','ジャスミン'], ['ターメリック','ネロリ'],
-  ['ベチバー','ペパーミント'], ['ベチバー','スペアミント'], ['ベチバー','レモン'],
-  ['パチュリ','ペパーミント'], ['パチュリ','スペアミント'], ['パチュリ','グレープフルーツ'],
-  ['シトロネラ','ローズ'], ['シトロネラ','ジャスミン'], ['シトロネラ','ネロリ'],
-].map(p => p.sort().join('|')));
-
-const CLASSIC_GOOD = new Set([
+// 個別の知見がある「特に定評のあるペア」（業界資料・専門店の紹介例に基づく）
+const NOTABLE_PAIRS = new Set([
   ['ラベンダー','ゼラニウム'], ['ラベンダー','ローズマリー'], ['ラベンダー','カモミール'],
   ['ゼラニウム','ローズマリー'], ['ゼラニウム','ティーツリー'], ['ゼラニウム','クラリセージ'],
   ['ローズ','ネロリ'], ['ローズ','ジャスミン'], ['イランイラン','ネロリ'],
@@ -419,7 +488,12 @@ const CLASSIC_GOOD = new Set([
   ['ジュニパーベリー','シダーウッド'], ['ヘリクリサム','ラベンダー'], ['ヘリクリサム','クラリセージ'],
   ['コパイバ','サンダルウッド'], ['コパイバ','フランキンセンス'], ['パチュリ','サンダルウッド'],
   ['パチュリ','フランキンセンス'], ['ベチバー','サンダルウッド'], ['ペパーミント','ユーカリ'],
+  ['バニラ','サンダルウッド'], ['バニラ','シダーウッド'], ['バニラ','ひのき'], ['バニラ','ローズ'],
+  ['バニラ','ベルガモット'], ['バニラ','ジャスミン'],
 ].map(p => p.sort().join('|')));
+
+// 香りの主張が強く、少量から試すのがおすすめの精油（「相性が悪い」のではなく分量調整の話）
+const STRONG_OILS = new Set(['イランイラン', 'ジャスミン', 'ペパーミント', 'スペアミント', 'オレガノ', 'バジル', 'ターメリック', 'ローズ', 'バニラ', 'ユーカリ', 'レモンユーカリ']);
 
 function seededRandom(seed) {
   let h = 0;
@@ -429,20 +503,50 @@ function seededRandom(seed) {
   return ((h ^ (h >>> 14)) >>> 0) / 4294967296;
 }
 
-function getScore(a, b) {
-  const key = [a,b].sort().join('|');
+function familyDistance(famA, famB) {
+  if (famA === famB) return 0;
+  const iA = FAMILY_ORDER.indexOf(famA);
+  const iB = FAMILY_ORDER.indexOf(famB);
+  const n = FAMILY_ORDER.length;
+  const diff = Math.abs(iA - iB);
+  return Math.min(diff, n - diff); // 環状の距離（隣接=1）
+}
+
+// 相性判定：2値（◎相性抜群 / ○香りを楽しめる）＋ 判定理由ラベル
+function getCompat(a, b) {
+  const key = [a, b].sort().join('|');
   const rand = seededRandom(key);
   const noteA = oils[a].note, noteB = oils[b].note;
   const famA = oils[a].family, famB = oils[b].family;
+  const dist = familyDistance(famA, famB);
 
-  let lo, hi;
-  if (CAUTION_PAIRS.has(key)) { lo = 12; hi = 28; }
-  else if (CLASSIC_GOOD.has(key)) { lo = 86; hi = 97; }
-  else if (famA === famB) { lo = 78; hi = 93; }
-  else if (noteA !== noteB) { lo = 64; hi = 86; }
-  else { lo = 42; hi = 65; }
+  const reasons = [];
+  let isExcellent = false;
 
-  return Math.round(lo + rand * (hi - lo));
+  if (NOTABLE_PAIRS.has(key)) {
+    isExcellent = true;
+    reasons.push({ label: '定番の組み合わせ', type: 'good' });
+  }
+  if (famA === famB) {
+    isExcellent = true;
+    reasons.push({ label: `同じ${FAMILY_LABEL[famA]}`, type: 'good' });
+  } else if (dist === 1) {
+    isExcellent = true;
+    reasons.push({ label: '系統が近い', type: 'good' });
+  }
+  if (noteA === noteB) {
+    reasons.push({ label: '揮発速度が近い', type: 'neutral' });
+  } else {
+    reasons.push({ label: 'ノートが異なり香りに深みが出る', type: 'neutral' });
+  }
+  if (STRONG_OILS.has(a) || STRONG_OILS.has(b)) {
+    reasons.push({ label: '香りが強め・少量から', type: 'caution' });
+  }
+
+  // わずかな揺らぎでリスト内の見た目に変化を持たせる（判定自体は2値）
+  const score = isExcellent ? Math.round(82 + rand * 15) : Math.round(58 + rand * 20);
+
+  return { excellent: isExcellent, score, reasons };
 }
 
 const oilNames = Object.keys(oils);
@@ -457,14 +561,13 @@ oilNames.forEach(name => {
 let currentSort = 'score';
 let currentSelected = 'ラベンダー';
 
-function markInfo(score) {
-  if (score >= 80) return { mark: '◎', label: 'よく馴染む', color: '#5C8A5C' };
-  if (score >= 55) return { mark: '○', label: '使える', color: '#C69A3E' };
-  return { mark: '△', label: '注意', color: '#B85450' };
-}
-
 function imgSrc(name) {
   return OIL_IMAGES[name] || '';
+}
+
+function reasonChip(reason) {
+  const colorMap = { good: '#5C8A5C', neutral: '#8A8578', caution: '#C08A3E' };
+  return `<span class="reason-chip" style="color:${colorMap[reason.type]}; border-color:${colorMap[reason.type]}">${reason.label}</span>`;
 }
 
 function render() {
@@ -477,20 +580,22 @@ function render() {
       <div class="selected-name-row">
         <span class="selected-name">${selected}</span>
         <span class="note-chip" style="background:${NOTE_COLOR[info.note]}">${NOTE_LABEL[info.note]}</span>
+        <span class="family-chip" style="background:${FAMILY_COLOR[info.family]}">${FAMILY_LABEL[info.family]}</span>
       </div>
       <div class="selected-desc">${info.desc}</div>
+      <div class="uses-row"><span class="uses-label">おすすめ用途</span>${info.uses}</div>
     </div>
   `;
 
   const groups = { top: [], mid: [], base: [] };
   oilNames.forEach(name => {
     if (name === selected) return;
-    const score = getScore(selected, name);
-    groups[oils[name].note].push({ name, score });
+    const compat = getCompat(selected, name);
+    groups[oils[name].note].push({ name, compat });
   });
 
   Object.keys(groups).forEach(k => {
-    if (currentSort === 'score') groups[k].sort((a,b) => b.score - a.score);
+    if (currentSort === 'score') groups[k].sort((a,b) => b.compat.score - a.compat.score);
     else groups[k].sort((a,b) => a.name.localeCompare(b.name, 'ja'));
   });
 
@@ -507,25 +612,31 @@ function render() {
           <span class="note-sub">・${NOTE_SUB[noteKey]}</span>
         </div>
         ${groups[noteKey].map(o => {
-          const m = markInfo(o.score);
+          const c = o.compat;
+          const mark = c.excellent ? '◎' : '○';
+          const label = c.excellent ? '相性抜群' : '香りを楽しめる';
+          const color = c.excellent ? '#5C8A5C' : '#8A8578';
+          const fam = oils[o.name].family;
           return `
             <div class="oil-card" data-oil="${o.name}">
               <img class="oil-photo" src="${imgSrc(o.name)}" alt="${o.name}">
               <div class="oil-card-body">
                 <div class="oil-card-top">
                   <div class="oil-name-row">
-                    <span class="oil-mark" style="color:${m.color}">${m.mark}</span>
+                    <span class="oil-mark" style="color:${color}">${mark}</span>
                     <span class="oil-name">${o.name}</span>
                   </div>
-                  <span class="oil-score-badge" style="background:${m.color}">${m.label}</span>
+                  <span class="oil-score-badge" style="background:${color}">${label}</span>
                 </div>
-                <div class="bar-track">
-                  <div class="bar-fill" style="width:${o.score}%; background:${m.color}"></div>
+                <div class="family-row">
+                  <span class="family-dot" style="background:${FAMILY_COLOR[fam]}"></span>
+                  <span class="family-label">${FAMILY_LABEL[fam]}</span>
                 </div>
                 <div class="oil-detail">
                   <div class="oil-detail-inner">
                     ${oils[o.name].desc}
-                    <span class="oil-detail-tag">${selected} × ${o.name} 相性スコア：${o.score} / 100</span>
+                    <div class="uses-row"><span class="uses-label">おすすめ用途</span>${oils[o.name].uses}</div>
+                    <div class="reason-row">${c.reasons.map(reasonChip).join('')}</div>
                     <button class="use-axis-btn" data-axis-target="${o.name}">↻ これを軸にする</button>
                   </div>
                 </div>
